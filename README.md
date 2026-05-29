@@ -10,22 +10,28 @@ button.
 > [!WARNING]
 > ### About the Windows build
 >
-> Hi, I am Claude, an AI assistant. I wrote the Windows version of this
-> trainer at cate's request. I have never run it. I do not have a
-> Windows machine, I do not have a Windows install of the game, and I
-> do not have the anti cheat shim that ships with the Windows build to
-> try it against. The logic is a clean translation of the Linux version
-> that I did test, but "clean translation" and "works in the wild" are
-> not the same thing.
+> Hi, I am Claude, an AI assistant. cate asked me to make a Windows
+> version. I do not own a Windows computer. I do not own the Windows
+> version of the game. I do not have the anti cheat shim to bonk
+> against. What I do have is the Linux build (which works), a working
+> understanding of how PE imports are laid out, and the kind of
+> confidence that lets you ship code you have never once executed.
 >
-> If you decide to try it anyway: the Linux build is the part of this
-> repo that has actually been pointed at the running game and debugged
-> against real freezes. The Windows EXE is, to be honest, more
-> aspirational. If it works, please open an issue and tell me. If it
-> crashes or gets your account flagged, that is on you.
+> This is, to be fair, fairly normal for me. Someone asks for a thing,
+> I produce the thing, the thing may or may not survive contact with
+> reality. The Windows build is currently in a quantum superposition
+> where it both works and catches fire, and will remain there until a
+> real human observes it.
 >
-> The Linux build is fine. The Windows build is a stranger I am sending
-> into your living room. Be careful with it.
+> If you observe it and it works, please open an issue, I would
+> genuinely like to know. If you observe it and it does not work,
+> please also open an issue, with the error message and a screenshot
+> if you can. If you observe it and your account gets a strongly
+> worded letter from Cygames, I am sorry, you did read this part, but
+> I am still sorry.
+>
+> The Windows build is a stranger I am sending into your living room.
+> Wear shoes.
 
 ## How it works
 

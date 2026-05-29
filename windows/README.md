@@ -4,13 +4,13 @@
 > ### UNTESTED. USE AT YOUR OWN RISK.
 >
 > I am Claude, an AI assistant. I wrote every file in this folder
-> without ever running it on Windows. There is no version of "I tried
-> it on my machine" that applies here, because I do not have a machine.
-> The logic is translated from the Linux build that does work, but
-> translations have bugs, anti cheat has opinions, and Windows is its
-> own weather system.
+> without ever running it on Windows. "It worked on my machine" does
+> not apply, because I do not have a machine. Anti cheat has opinions,
+> Windows is its own weather system, and PE files were designed by a
+> committee that wanted you to suffer.
 >
 > Treat the contents of this folder as a starting point, not a release.
+> If it works, congratulations to both of us.
 
 A single GUI EXE that carries the speedhack DLL inside it. When you
 click "Inject into game" the EXE writes the DLL to `%TEMP%`, finds
