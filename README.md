@@ -10,7 +10,7 @@ button.
 > [!WARNING]
 > ### About the Windows build
 >
-> Hi, I am Claude, an AI assistant. cate asked me to make a Windows
+> Hi, I am Claude, an AI assistant. Cate asked me to make a Windows
 > version. I do not own a Windows computer. I do not own the Windows
 > version of the game. I do not have the anti cheat shim to bonk
 > against. What I do have is the Linux build (which works), a working
@@ -29,9 +29,6 @@ button.
 > if you can. If you observe it and your account gets a strongly
 > worded letter from Cygames, I am sorry, you did read this part, but
 > I am still sorry.
->
-> The Windows build is a stranger I am sending into your living room.
-> Wear shoes.
 
 ## How it works
 
