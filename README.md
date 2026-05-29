@@ -96,8 +96,8 @@ echo 3 > /tmp/uma-hook.ctrl
 The Windows side of this repo ships as a single `uma_speed_trainer.exe`
 that has the speedhack DLL embedded inside it. Workflow:
 
-1. Grab the prebuilt EXE from the latest run on the
-   [Actions tab](../../actions), under "Artifacts".
+1. Download `uma_speed_trainer.exe` from the
+   [latest release](../../releases/latest).
 2. Start Umamusume: Pretty Derby through Steam.
 3. Run `uma_speed_trainer.exe`.
 4. Click **Inject into game**, then use the **Set** / **OFF** buttons.
