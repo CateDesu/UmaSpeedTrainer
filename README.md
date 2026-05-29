@@ -69,14 +69,6 @@ Or just write to the file yourself:
 echo 3 > /tmp/uma-hook.ctrl
 ```
 
-### Why turn it off for loading screens
-
-Asset loads, menu transitions, and network calls happen at real time
-no matter what the clock says. If the clock is racing ahead while a
-loading screen waits for assets, the game can decide the load timed
-out and act weird. The safe pattern is: ON during training and races,
-OFF when going back to a menu or the title screen.
-
 ## Windows setup (untested)
 
 See [windows/README.md](windows/README.md) for the build, inject, and
@@ -96,9 +88,9 @@ validate.
 
 Linux scales `CLOCK_MONOTONIC_RAW` only. Touching `CLOCK_MONOTONIC`
 would break Wine's internal synchronization, because Wine uses absolute
-deadlines on that clock and the kernel does not see our scaling. Our
+deadlines on that clock and the kernel does not see the scaling. The
 clock would say the deadline is in the past, the kernel would say it is
-in the future, and the game freezes. We learned this the hard way.
+in the future, and the game freezes.
 
 Windows scales `QueryPerformanceCounter`, `GetTickCount`,
 `GetTickCount64`, and `timeGetTime` in every module that imports them
@@ -106,11 +98,9 @@ through the standard import tables.
 
 ## Anti cheat note
 
-Uma Musume relies mostly on server side checks. We do not modify the
-wall clock, so the obvious "client time is far from server time" check
-does not fire. There is still some risk on your main account. The
-author of this repo accepted that risk; you may want to use a throw
-away account.
+Uma Musume relies mostly on server side checks. This does not modify
+the wall clock, so the obvious "client time is far from server time"
+check does not fire. There is still some risk on your main account.
 
 ## Files
 
