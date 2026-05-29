@@ -1,0 +1,45 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSYS2 with mingw-w64 toolchain
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-tools
+            make
+
+      - name: Build EXE and DLL
+        run: |
+          cd windows
+          make CC=gcc WINDRES=windres
+
+      - name: List artifacts
+        run: |
+          cd windows
+          ls -lh uma_speed_trainer.exe uma_hook.dll
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: UmaSpeedTrainer-windows
+          path: |
+            windows/uma_speed_trainer.exe
+            windows/uma_hook.dll
+          if-no-files-found: error

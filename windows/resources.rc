@@ -1,0 +1,2 @@
+/* Embed the speedhack DLL as a binary resource so the EXE can carry it. */
+1 RCDATA "uma_hook.dll"

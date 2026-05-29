@@ -1,12 +1,25 @@
 # Windows port (untested)
 
-Same idea as the Linux version but for native Windows. A DLL hooks
-`QueryPerformanceCounter`, `GetTickCount`, `GetTickCount64`, and
-`timeGetTime` by patching the Import Address Table of every loaded
-module that imports them.
+A single GUI EXE that carries the speedhack DLL inside it. When you
+click "Inject into game" the EXE writes the DLL to `%TEMP%`, finds
+the running game, and injects it. After that, the ON, OFF, and speed
+picker just write to the same control file the DLL polls.
 
-Same control file model: write a positive float to `%TEMP%\uma-hook.ctrl`
-and the DLL picks it up within 100 milliseconds.
+## Get the EXE
+
+GitHub Actions builds `uma_speed_trainer.exe` on every push to `main`.
+Download the latest artifact from the
+[Actions tab](../../actions) of the repo and unzip it.
+
+If you would rather build it yourself, see [Build](#build) below.
+
+## Use
+
+1. Start Umamusume: Pretty Derby normally through Steam.
+2. Run `uma_speed_trainer.exe`.
+3. Click **Inject into game**.
+4. Set the speed and click **ON**. Click **OFF** before any loading
+   screen or server call.
 
 ## Build
 
@@ -15,52 +28,40 @@ Cross compile from Linux:
 ```
 sudo pacman -S mingw-w64-gcc        # CachyOS / Arch
 sudo apt install gcc-mingw-w64      # Debian / Ubuntu
+cd windows
 make
 ```
 
-Or build on Windows with MSYS2 by installing the `mingw-w64-x86_64-toolchain`
-package group, opening the "MINGW64" shell, and running `make`.
-
-You get `uma_hook.dll`.
-
-## Inject
-
-Start the game first, then from a Windows command prompt:
+On Windows with MSYS2:
 
 ```
-python inject.py UmamusumePrettyDerby.exe C:\path\to\uma_hook.dll
+pacman -S mingw-w64-x86_64-gcc make
+cd windows
+make CC=gcc WINDRES=windres
 ```
 
-If you would rather use a GUI injector, Process Hacker, Cheat Engine,
-and Extreme Injector all work for this kind of plain LoadLibrary based
-DLL.
+You get `uma_speed_trainer.exe` and a standalone `uma_hook.dll` next
+to it.
 
-## Control speed
+## What it hooks
 
-From a command prompt while the game is running:
+The DLL walks every loaded module in the game and rewrites Import
+Address Table entries for these functions:
 
-```
-setspeed.bat 3        # 3x
-setspeed.bat 0.5      # half speed
-setspeed.bat off      # back to normal
-setspeed.bat          # show current value
-```
+* `QueryPerformanceCounter` (this is the big one for Unity)
+* `GetTickCount`
+* `GetTickCount64`
+* `timeGetTime`
 
-Or just edit `%TEMP%\uma-hook.ctrl` in any text editor.
+Modules that get loaded later than the injection time will not be
+patched. For Unity that is usually fine because `UnityPlayer.dll`
+loads very early.
 
-## What does not work
+## Caveats
 
-I could not test any of this against real Windows. Likely failure modes:
-
-* The game may use a clock the DLL does not hook. Unity normally uses
-  `QueryPerformanceCounter` so it should be covered, but a different
-  game would need different hooks.
-* Some anti cheat systems detect IAT modification. Uma Musume on
-  Windows ships with anti cheat. The Linux version slips past because
-  Wine fsync is the layer that gets confused, not the game itself.
-  On real Windows the anti cheat sees the patched IAT directly.
-* Modules loaded after the DLL gets injected will not have their IAT
-  patched. A re injection or a reload would be needed.
-
-If you actually try this and it works (or breaks in an interesting way),
-open an issue.
+* Anti cheat may detect the IAT writes. Uma Musume on Windows ships
+  with anti cheat. The Linux build slips past because Wine is the
+  layer that gets confused, not the game. On real Windows the anti
+  cheat sees the patched IAT directly.
+* This code has never been run on real Windows by the author.
+  Open an issue if it works or breaks.
