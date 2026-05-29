@@ -34,14 +34,14 @@ button.
 
 The game asks the operating system "what time is it?" many times per
 second. Unity uses the answer to decide how far to advance animations,
-physics, timers, and so on. If we lie about how much time has passed,
-the game runs faster (or slower) without knowing.
+physics, timers, and so on. If the answer is a lie about how much time
+has passed, the game runs faster (or slower) without knowing.
 
-We do not touch game memory, do not patch the game files, and do not
-attach as a debugger. We only intercept the system time functions in
-a library the game loads. The Linux build does this with `LD_PRELOAD`.
-The Windows build does it with a DLL that patches the import tables of
-the modules already loaded into the game.
+The trainer does not touch game memory, does not patch the game files,
+and does not attach as a debugger. It only intercepts the system time
+functions in a library the game loads. The Linux build does this with
+`LD_PRELOAD`. The Windows build does it with a DLL that patches the
+import tables of the modules already loaded into the game.
 
 There is one control file. The trainer reads it every 100 milliseconds.
 The GUI, the command line script, and the .bat file all just write a
