@@ -1,0 +1,11 @@
+{
+  global:
+    clock_gettime;
+    gettimeofday;
+    time;
+    nanosleep;
+    clock_nanosleep;
+    usleep;
+  local:
+    *;
+};

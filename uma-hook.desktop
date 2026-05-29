@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Uma Hook
+Comment=Speed control for Uma Musume Pretty Derby
+Exec=/home/cate/uma_hook/umagui
+Icon=preferences-system-time
+Terminal=false
+Categories=Game;Utility;
+StartupNotify=true
+StartupWMClass=uma_hook
