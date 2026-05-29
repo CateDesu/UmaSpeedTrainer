@@ -23,28 +23,49 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <psapi.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define ID_INJECT_BTN 100
-#define ID_ON_BTN     101
-#define ID_OFF_BTN    102
-#define ID_SPEED_EDIT 103
-#define ID_STATUS_LBL 104
-#define ID_TIMER      1
-#define DLL_RES_ID    1
-#define TARGET_EXE    "UmamusumePrettyDerby.exe"
+#define ID_INJECT_BTN  100
+#define ID_ON_BTN      101
+#define ID_OFF_BTN     102
+#define ID_SPEED_DOWN  103
+#define ID_SPEED_UP    104
+#define ID_STATUS_LBL  105
+#define ID_SPEED_LBL   106
+#define ID_TIMER       1
+#define DLL_RES_ID     1
+#define TARGET_EXE     "UmamusumePrettyDerby.exe"
+
+#define SPEED_MIN  1.0
+#define SPEED_MAX  5.0
+#define SPEED_STEP 0.25
 
 static char  dll_temp_path[MAX_PATH];
 static char  ctrl_path[MAX_PATH];
 static HWND  hStatus;
-static HWND  hSpeed;
+static HWND  hSpeedLbl;
 static DWORD injected_pid = 0;
+static double g_speed = 3.0;
 
-/* Extract the embedded DLL resource to %TEMP%\uma_hook_<our_pid>.dll.
- * Using our pid in the name avoids collisions when an old DLL is still
- * loaded into the game from a previous run. */
+static void update_speed_label(void) {
+    char buf[32];
+    snprintf(buf, sizeof buf, "%.2f", g_speed);
+    SetWindowTextA(hSpeedLbl, buf);
+}
+
+static double read_speed_from_field(void) {
+    char buf[64];
+    GetWindowTextA(hSpeedLbl, buf, sizeof buf);
+    double v = atof(buf);
+    if (v < SPEED_MIN) v = SPEED_MIN;
+    if (v > SPEED_MAX) v = SPEED_MAX;
+    return v;
+}
+
+/* Extract the embedded DLL resource to %TEMP%\uma_hook_<our_pid>.dll. */
 static int extract_dll(void) {
     HRSRC res = FindResourceA(NULL, MAKEINTRESOURCEA(DLL_RES_ID), RT_RCDATA);
     if (!res) return 0;
@@ -172,30 +193,44 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
             hStatus = CreateWindowA("STATIC", "Not injected.",
                 WS_VISIBLE | WS_CHILD,
-                12, 56, 320, 40, hwnd,
+                12, 56, 320, 36, hwnd,
                 (HMENU)(intptr_t)ID_STATUS_LBL, NULL, NULL);
             SendMessageA(hStatus, WM_SETFONT, (WPARAM)font, TRUE);
 
+            /* Speed row: [-] [3.00x] [+] */
             HWND lbl = CreateWindowA("STATIC", "Speed:",
                 WS_VISIBLE | WS_CHILD,
-                12, 110, 50, 24, hwnd, NULL, NULL, NULL);
+                12, 104, 50, 28, hwnd, NULL, NULL, NULL);
             SendMessageA(lbl, WM_SETFONT, (WPARAM)font, TRUE);
 
-            hSpeed = CreateWindowA("EDIT", "3.0",
-                WS_VISIBLE | WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
-                64, 107, 60, 26, hwnd,
-                (HMENU)(intptr_t)ID_SPEED_EDIT, NULL, NULL);
-            SendMessageA(hSpeed, WM_SETFONT, (WPARAM)font, TRUE);
-
-            HWND on = CreateWindowA("BUTTON", "ON",
+            HWND minus = CreateWindowA("BUTTON", "-",
                 WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                140, 102, 90, 36, hwnd,
+                66, 100, 40, 34, hwnd,
+                (HMENU)(intptr_t)ID_SPEED_DOWN, NULL, NULL);
+            SendMessageA(minus, WM_SETFONT, (WPARAM)font, TRUE);
+
+            hSpeedLbl = CreateWindowA("EDIT", "3.00",
+                WS_VISIBLE | WS_CHILD | WS_BORDER | ES_CENTER | ES_AUTOHSCROLL,
+                110, 103, 76, 28, hwnd,
+                (HMENU)(intptr_t)ID_SPEED_LBL, NULL, NULL);
+            SendMessageA(hSpeedLbl, WM_SETFONT, (WPARAM)font, TRUE);
+
+            HWND plus = CreateWindowA("BUTTON", "+",
+                WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+                190, 100, 40, 34, hwnd,
+                (HMENU)(intptr_t)ID_SPEED_UP, NULL, NULL);
+            SendMessageA(plus, WM_SETFONT, (WPARAM)font, TRUE);
+
+            /* ON / OFF row */
+            HWND on = CreateWindowA("BUTTON", "Set",
+                WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+                12, 148, 148, 40, hwnd,
                 (HMENU)(intptr_t)ID_ON_BTN, NULL, NULL);
             SendMessageA(on, WM_SETFONT, (WPARAM)font, TRUE);
 
             HWND off = CreateWindowA("BUTTON", "OFF",
                 WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                242, 102, 90, 36, hwnd,
+                172, 148, 148, 40, hwnd,
                 (HMENU)(intptr_t)ID_OFF_BTN, NULL, NULL);
             SendMessageA(off, WM_SETFONT, (WPARAM)font, TRUE);
 
@@ -223,12 +258,18 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                         "Uma Speed Trainer", MB_OK | MB_ICONERROR);
                 }
                 update_status();
+            } else if (id == ID_SPEED_DOWN) {
+                g_speed = round((g_speed - SPEED_STEP) / SPEED_STEP) * SPEED_STEP;
+                if (g_speed < SPEED_MIN) g_speed = SPEED_MIN;
+                update_speed_label();
+            } else if (id == ID_SPEED_UP) {
+                g_speed = round((g_speed + SPEED_STEP) / SPEED_STEP) * SPEED_STEP;
+                if (g_speed > SPEED_MAX) g_speed = SPEED_MAX;
+                update_speed_label();
             } else if (id == ID_ON_BTN) {
-                char buf[64];
-                GetWindowTextA(hSpeed, buf, sizeof buf);
-                double v = atof(buf);
-                if (v <= 0) v = 3.0;
-                write_speed(v);
+                g_speed = read_speed_from_field();
+                update_speed_label();
+                write_speed(g_speed);
                 update_status();
             } else if (id == ID_OFF_BTN) {
                 write_speed(1.0);
@@ -274,7 +315,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 
     HWND hwnd = CreateWindowA(wc.lpszClassName, "Uma Speed Trainer",
         WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX),
-        CW_USEDEFAULT, CW_USEDEFAULT, 360, 200,
+        CW_USEDEFAULT, CW_USEDEFAULT, 360, 240,
         NULL, NULL, inst, NULL);
     if (!hwnd) return 1;
     ShowWindow(hwnd, show);

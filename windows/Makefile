@@ -16,7 +16,7 @@ WINDRES ?= x86_64-w64-mingw32-windres
 CFLAGS      := -O2 -Wall -Wextra
 LDFLAGS_DLL := -shared -static-libgcc \
                -Wl,--out-implib,uma_hook.lib -lpsapi
-LDFLAGS_EXE := -static-libgcc -mwindows -lpsapi -lcomctl32
+LDFLAGS_EXE := -static-libgcc -mwindows -lpsapi -lcomctl32 -lm
 
 all: uma_speed_trainer.exe uma_hook.dll
 

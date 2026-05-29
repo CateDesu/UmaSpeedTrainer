@@ -56,15 +56,15 @@ class UmaWindow(QWidget):
         row = QHBoxLayout()
         row.addWidget(QLabel("Speed:"))
         self.spin = QDoubleSpinBox()
-        self.spin.setRange(1.0, 20.0)
-        self.spin.setSingleStep(0.5)
+        self.spin.setRange(1.0, 5.0)
+        self.spin.setSingleStep(0.25)
         self.spin.setDecimals(2)
         self.spin.setValue(3.0)
         row.addWidget(self.spin, stretch=1)
         root.addLayout(row)
 
         btns = QHBoxLayout()
-        self.on_btn = QPushButton("ON")
+        self.on_btn = QPushButton("Set")
         self.off_btn = QPushButton("OFF")
         for b, css in (
             (self.on_btn,  "background: #2e7d32; color: white;"),

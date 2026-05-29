@@ -1,7 +1,7 @@
 # UmaSpeedTrainer
 
 A speed trainer for **Umamusume: Pretty Derby**. Lets you fast forward
-through the slow parts of training, races, and menus with an on/off
+through the slow parts of training, races, and menus with a Set/Off
 button.
 
 * Linux (Proton): works. Tested up to 5x with no freezes, no crashes.
@@ -72,7 +72,7 @@ GUI:
 ```
 python3 /home/cate/uma_hook/gui.py
 ```
-A small window with ON, OFF, and a speed picker. Stays on top of the
+A small window with Set, OFF, and a speed picker. Stays on top of the
 game. To pin it to your KDE app launcher:
 ```
 cp uma-hook.desktop ~/.local/share/applications/
@@ -100,7 +100,7 @@ that has the speedhack DLL embedded inside it. Workflow:
    [Actions tab](../../actions), under "Artifacts".
 2. Start Umamusume: Pretty Derby through Steam.
 3. Run `uma_speed_trainer.exe`.
-4. Click **Inject into game**, then use the ON / OFF buttons.
+4. Click **Inject into game**, then use the **Set** / **OFF** buttons.
 
 Or build it yourself with mingw. See [windows/README.md](windows/README.md)
 for the gory details, fallback CLI injector (`inject.py`), the .bat
@@ -141,7 +141,7 @@ exports.map          (unused, kept for reference)
 launch.sh            Steam launch wrapper
 setspeed.sh          CLI speed control
 watch.sh             tails the log file
-gui.py               PyQt6 ON/OFF window
+gui.py               PyQt6 Set/OFF window
 umagui               tiny shell wrapper that launches gui.py
 uma-hook.desktop     KDE app menu entry for the GUI
 windows/             Windows port (DLL, injector, bat script, README)
