@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""uma_hook GUI — runtime ON/OFF for the Uma Musume speedhack.
+"""uma_hook GUI. Runtime ON/OFF for the Uma Musume speedhack.
 
 Writes the chosen speed (default 3.0) to the same ctrl file that
 libuma_hook.so polls. The hook picks up the change within ~100 ms.

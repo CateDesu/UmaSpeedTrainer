@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setspeed.sh — change Uma Musume speed at runtime.
+# setspeed.sh: change Uma Musume speed at runtime.
 # Usage:
 #   setspeed.sh 2          # 2x
 #   setspeed.sh 0.5        # half speed (slow-mo)

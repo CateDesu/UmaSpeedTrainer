@@ -1,5 +1,5 @@
 /*
- * libuma_hook.c — runtime-toggleable speedhack LD_PRELOAD for Uma Musume (Proton).
+ * libuma_hook.c: runtime toggleable speedhack LD_PRELOAD for Uma Musume (Proton).
  *
  * Hooks libc time + sleep symbols. Wine's ntdll.so imports clock_gettime,
  * gettimeofday, time, usleep from glibc with zero inline syscalls (verified
@@ -8,7 +8,7 @@
  *
  * Speed control: a single float in /tmp/uma-hook.ctrl, re-read every ~100 ms.
  *
- * IMPORTANT — what we scale and why:
+ * IMPORTANT, what we scale and why:
  *
  *   Only CLOCK_MONOTONIC_RAW is scaled. That is the clock Wine's modern
  *   ntdll uses for RtlQueryPerformanceCounter, which is what Unity reads for
@@ -16,15 +16,16 @@
  *
  *   CLOCK_MONOTONIC is deliberately left alone. Wine's fsync uses it for
  *   FUTEX_WAIT_BITSET absolute deadlines, and the kernel does not see our
- *   scaling — if we scaled MONOTONIC the kernel would sleep until its
+ *   scaling. If we scaled MONOTONIC the kernel would sleep until its
  *   unscaled clock reached a fake future deadline, freezing every Wine
  *   cross-thread synchronization.
  *
  *   CLOCK_BOOTTIME / CLOCK_REALTIME also unscaled (GetTickCount64 / wall
- *   clock — server time-skew detection, TLS cert checks, file timestamps).
+ *   clock, so we do not trip server time skew detection, TLS cert checks,
+ *   or break file timestamps).
  *
  *   Side effect: Time.realtimeSinceStartup (QPC) speeds up; GetTickCount64
- *   does not. Unity tolerates the divergence — most game logic reads QPC.
+ *   does not. Unity tolerates the divergence because most game logic reads QPC.
  *
  * Hot path is lockless: speed is stored as bit-cast atomic uint64, anchors
  * are seqlock-protected. Writers (speed changes, anchor init) serialize on

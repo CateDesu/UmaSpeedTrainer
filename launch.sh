@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launch.sh — Steam launch wrapper for the uma_hook LD_PRELOAD.
+# launch.sh: Steam launch wrapper for the uma_hook LD_PRELOAD.
 #
 # Steam Properties → Launch Options:
 #   /home/cate/uma_hook/launch.sh %command%
@@ -29,8 +29,8 @@ echo "1.0" > "$UMA_HOOK_CTRL"
 # Compose LD_PRELOAD:
 #   1) APPEND our entry so gameoverlayrenderer stays first (avoids CRT crash on
 #      Arch/CachyOS where the overlay expects to lead the chain).
-#   2) Strip leading/trailing/duplicate ':' to avoid empty entries — newer
-#      glibcs occasionally bail on those.
+#   2) Strip leading/trailing/duplicate ':' to avoid empty entries, since
+#      newer glibcs occasionally bail on those.
 clean_preload() {
     local p="${1:-}"
     # collapse runs of ':' and strip leading/trailing ones
