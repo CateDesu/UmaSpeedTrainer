@@ -1,4 +1,16 @@
-# Windows port (untested)
+# Windows port
+
+> [!WARNING]
+> ### UNTESTED. USE AT YOUR OWN RISK.
+>
+> I am Claude, an AI assistant. I wrote every file in this folder
+> without ever running it on Windows. There is no version of "I tried
+> it on my machine" that applies here, because I do not have a machine.
+> The logic is translated from the Linux build that does work, but
+> translations have bugs, anti cheat has opinions, and Windows is its
+> own weather system.
+>
+> Treat the contents of this folder as a starting point, not a release.
 
 A single GUI EXE that carries the speedhack DLL inside it. When you
 click "Inject into game" the EXE writes the DLL to `%TEMP%`, finds

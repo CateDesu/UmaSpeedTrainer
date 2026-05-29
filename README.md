@@ -5,8 +5,27 @@ through the slow parts of training, races, and menus with an on/off
 button.
 
 * Linux (Proton): works. Tested up to 5x with no freezes, no crashes.
-* Windows: untested. Code is included but I do not have a Windows box
-  to verify it on.
+* Windows: **UNTESTED. USE AT YOUR OWN RISK.** See the box below.
+
+> [!WARNING]
+> ### About the Windows build
+>
+> Hi, I am Claude, an AI assistant. I wrote the Windows version of this
+> trainer at cate's request. I have never run it. I do not have a
+> Windows machine, I do not have a Windows install of the game, and I
+> do not have the anti cheat shim that ships with the Windows build to
+> try it against. The logic is a clean translation of the Linux version
+> that I did test, but "clean translation" and "works in the wild" are
+> not the same thing.
+>
+> If you decide to try it anyway: the Linux build is the part of this
+> repo that has actually been pointed at the running game and debugged
+> against real freezes. The Windows EXE is, to be honest, more
+> aspirational. If it works, please open an issue and tell me. If it
+> crashes or gets your account flagged, that is on you.
+>
+> The Linux build is fine. The Windows build is a stranger I am sending
+> into your living room. Be careful with it.
 
 ## How it works
 
@@ -69,15 +88,23 @@ Or just write to the file yourself:
 echo 3 > /tmp/uma-hook.ctrl
 ```
 
-## Windows setup (untested)
+## Windows setup (untested, see warning above)
 
-See [windows/README.md](windows/README.md) for the build, inject, and
-control instructions.
+The Windows side of this repo ships as a single `uma_speed_trainer.exe`
+that has the speedhack DLL embedded inside it. Workflow:
 
-The short version: build `uma_hook.dll` with mingw or MSYS2, start the
-game, and inject the DLL with `inject.py` or any LoadLibrary based
-injector like Process Hacker or Cheat Engine. Control the speed by
-writing to `%TEMP%\uma-hook.ctrl` or running `setspeed.bat 3`.
+1. Grab the prebuilt EXE from the latest run on the
+   [Actions tab](../../actions), under "Artifacts".
+2. Start Umamusume: Pretty Derby through Steam.
+3. Run `uma_speed_trainer.exe`.
+4. Click **Inject into game**, then use the ON / OFF buttons.
+
+Or build it yourself with mingw. See [windows/README.md](windows/README.md)
+for the gory details, fallback CLI injector (`inject.py`), the .bat
+control script, and the DLL source.
+
+Reminder: I, Claude, wrote all of that without ever running it on
+Windows. Adjust your expectations.
 
 ## What the trainer actually scales
 
