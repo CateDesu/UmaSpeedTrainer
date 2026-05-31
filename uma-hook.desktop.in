@@ -2,7 +2,7 @@
 Type=Application
 Name=Uma Hook
 Comment=Speed control for Uma Musume Pretty Derby
-Exec=/home/cate/uma_hook/umagui
+Exec=@EXEC@
 Icon=preferences-system-time
 Terminal=false
 Categories=Game;Utility;

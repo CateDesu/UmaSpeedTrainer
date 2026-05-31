@@ -49,34 +49,37 @@ number into that file. To turn off the speed up, write `1.0`.
 
 ## Linux setup (Proton)
 
-```
-cd ~/uma_hook
-make
-```
-
-In Steam, right click Umamusume: Pretty Derby, open Properties, and put
-this in Launch Options:
+Clone the repo anywhere, then build and install:
 
 ```
-/home/cate/uma_hook/launch.sh %command%
+cd uma_hook          # wherever you cloned it
+make install
 ```
 
-That is the only setup step. The game launches at normal speed every
-time. The trainer is loaded but does nothing until you tell it to.
+`make install` builds the 64-bit hook, adds an "Uma Hook" entry to your
+app menu, and prints the exact line to paste into Steam. That line looks
+like this, with your own absolute path:
+
+```
+/your/path/to/uma_hook/launch.sh %command%
+```
+
+Put it in Steam: right click Umamusume: Pretty Derby, open Properties,
+and paste it into Launch Options. That is the only manual step. The game
+launches at normal speed every time. The trainer is loaded but does
+nothing until you tell it to.
 
 ### Control it
 
 Three options, pick whichever you like.
 
-GUI:
+GUI: launch **Uma Hook** from your app menu (added by `make install`),
+or run it straight from the repo:
 ```
-python3 /home/cate/uma_hook/gui.py
+python3 gui.py
 ```
 A small window with Set, OFF, and a speed picker. Stays on top of the
-game. To pin it to your KDE app launcher:
-```
-cp uma-hook.desktop ~/.local/share/applications/
-```
+game.
 
 Command line:
 ```
@@ -143,7 +146,7 @@ setspeed.sh          CLI speed control
 watch.sh             tails the log file
 gui.py               PyQt6 Set/OFF window
 umagui               tiny shell wrapper that launches gui.py
-uma-hook.desktop     KDE app menu entry for the GUI
+uma-hook.desktop.in  template for the app menu entry (make install fills in the path)
 windows/             Windows port (DLL, injector, bat script, README)
 ```
 

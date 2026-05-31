@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 # Tiny launcher so you can put one command in a KDE shortcut.
-exec python3 /home/cate/uma_hook/gui.py "$@"
+# Self-locating: finds gui.py next to this script, wherever the repo lives.
+DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+exec python3 "$DIR/gui.py" "$@"

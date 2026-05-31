@@ -5,7 +5,7 @@ Writes the chosen speed (default 3.0) to the same ctrl file that
 libuma_hook.so polls. The hook picks up the change within ~100 ms.
 
 Run:
-    python3 /home/cate/uma_hook/gui.py
+    python3 gui.py
 """
 
 import os

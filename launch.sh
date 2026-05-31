@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # launch.sh: Steam launch wrapper for the uma_hook LD_PRELOAD.
 #
-# Steam Properties → Launch Options:
-#   /home/cate/uma_hook/launch.sh %command%
+# Steam Properties → Launch Options (use this script's absolute path;
+# `make install` prints the exact line for your checkout):
+#   /path/to/uma_hook/launch.sh %command%
 set -u
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
