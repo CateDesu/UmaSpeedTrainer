@@ -73,7 +73,7 @@ nothing until you tell it to.
 
 ### Control it
 
-Three options, pick whichever you like.
+Two options, pick whichever you like. The Linux controls require Python 3.
 
 GUI: launch **Uma Hook** from your app menu (added by `make install`),
 or run it straight from the repo:
@@ -91,10 +91,19 @@ Command line:
 ./setspeed.sh          # show current value
 ```
 
-Or just write to the file yourself:
-```
-echo 3 > /tmp/uma-hook.ctrl
-```
+The control file and log live in `$XDG_RUNTIME_DIR/uma-hook` when
+`XDG_RUNTIME_DIR` is set, or `/tmp/uma-hook-<uid>` otherwise. The directory
+must belong to you with mode `0700`. Files use mode `0600`.
+
+`UMA_HOOK_CTRL` and `UMA_HOOK_LOG` can override the file paths. Their
+parent directories must also belong to you with mode `0700`. Existing
+files must be owned regular files with mode `0600` and no extra hard
+links. Symbolic links in file paths are rejected. Unsafe paths stop the
+launcher and controls without overwriting their targets. The hook ignores
+unsafe control files and disables logging when the log path is unsafe.
+
+Use `./watch.sh` to follow the log. It keeps the validated file open, so
+restart it if you delete and recreate the log.
 
 ## Windows setup (untested, see warning above)
 
@@ -147,6 +156,8 @@ launch.sh            Steam launch wrapper
 setspeed.sh          CLI speed control
 watch.sh             tails the log file
 gui.py               PyQt6 Set/OFF window
+runtime.py           private runtime file handling for the Linux controls
+runtime_paths.h      private runtime file handling for the Linux hook
 umagui               tiny shell wrapper that launches gui.py
 uma-hook.desktop.in  template for the app menu entry (make install fills in the path)
 windows/             Windows port (DLL, injector, bat script, README)

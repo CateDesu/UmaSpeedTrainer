@@ -14,11 +14,11 @@ DESKTOP_DIR := $(HOME)/.local/share/applications
 
 all: lib64/libuma_hook.so
 
-lib64/libuma_hook.so: libuma_hook.c
+lib64/libuma_hook.so: libuma_hook.c runtime_paths.h
 	@mkdir -p lib64
 	gcc $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-lib/libuma_hook.so: libuma_hook.c
+lib/libuma_hook.so: libuma_hook.c runtime_paths.h
 	@mkdir -p lib
 	gcc -m32 $(CFLAGS) -o $@ $< $(LDFLAGS)
 
@@ -42,4 +42,7 @@ install: all
 clean:
 	rm -f lib64/libuma_hook.so lib/libuma_hook.so
 
-.PHONY: all all32 install clean
+test: all
+	python3 -m unittest discover -s tests -v
+
+.PHONY: all all32 install clean test

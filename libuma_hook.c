@@ -6,7 +6,7 @@
  * via objdump -T on Proton 10/11/Experimental/CachyOS), so QPC and other
  * Windows time APIs inside the Unity game route through here.
  *
- * Speed control: a single float in /tmp/uma-hook.ctrl, re-read every ~100 ms.
+ * Speed control: a single float in the private runtime directory, polled every 100 ms.
  *
  * IMPORTANT, what we scale and why:
  *
@@ -46,9 +46,11 @@
 #include <fcntl.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <math.h>
+#include <ctype.h>
+#include <sys/file.h>
+#include "runtime_paths.h"
 
-#define LOG_PATH_DEFAULT  "/tmp/uma-hook.log"
-#define CTRL_PATH_DEFAULT "/tmp/uma-hook.ctrl"
 #define MAX_LOGGED_CALLS  20
 #define MAX_CLOCK_ID      16
 #define POLL_INTERVAL_NS  100000000L  /* re-read ctrl file at most every 100 ms */
@@ -58,7 +60,9 @@ static int quiet = 0;
 static int hook_active = 0;
 static char proc_comm[64];
 static char proc_cmdline[1024];
-static char ctrl_path[256];
+static char ctrl_path[PATH_MAX];
+static char ctrl_name[NAME_MAX + 1];
+static int ctrl_dir_fd = -1;
 
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -127,21 +131,55 @@ static void logf_(const char *fmt, ...) {
     int n = vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     if (n <= 0) return;
+    if ((size_t)n >= sizeof(buf)) n = sizeof(buf) - 1;
     pthread_mutex_lock(&log_mutex);
     (void)!write(log_fd, buf, n);
     pthread_mutex_unlock(&log_mutex);
 }
 
-static inline int64_t ts_diff_ns(const struct timespec *a, const struct timespec *b) {
-    return (int64_t)(a->tv_sec - b->tv_sec) * 1000000000LL + (a->tv_nsec - b->tv_nsec);
+static inline int64_t bounded_ns(long double ns) {
+    if (isnan(ns)) return 0;
+    if (ns >= (long double)INT64_MAX) return INT64_MAX;
+    if (ns <= (long double)INT64_MIN) return INT64_MIN;
+    return (int64_t)ns;
+}
+
+static inline long double ts_diff_ns(const struct timespec *a, const struct timespec *b) {
+    return ((long double)a->tv_sec - b->tv_sec) * 1000000000.0L
+        + ((long double)a->tv_nsec - b->tv_nsec);
 }
 
 static inline void ts_add_ns(struct timespec *ts, int64_t ns) {
-    ts->tv_sec += ns / 1000000000LL;
+    int64_t max_sec = sizeof(time_t) >= sizeof(int64_t) ? INT64_MAX : INT32_MAX;
+    int64_t min_sec = sizeof(time_t) >= sizeof(int64_t) ? INT64_MIN : INT32_MIN;
+    int64_t seconds = ns / 1000000000LL;
+    if (seconds > 0 && ts->tv_sec > max_sec - seconds) {
+        ts->tv_sec = max_sec;
+        ts->tv_nsec = 999999999;
+        return;
+    }
+    if (seconds < 0 && ts->tv_sec < min_sec - seconds) {
+        ts->tv_sec = min_sec;
+        ts->tv_nsec = 0;
+        return;
+    }
+    ts->tv_sec += seconds;
     int64_t rem = ns % 1000000000LL;
     ts->tv_nsec += rem;
-    if (ts->tv_nsec >= 1000000000) { ts->tv_sec++; ts->tv_nsec -= 1000000000; }
-    else if (ts->tv_nsec < 0)      { ts->tv_sec--; ts->tv_nsec += 1000000000; }
+    if (ts->tv_nsec >= 1000000000) {
+        if (ts->tv_sec == max_sec) ts->tv_nsec = 999999999;
+        else { ts->tv_sec++; ts->tv_nsec -= 1000000000; }
+    } else if (ts->tv_nsec < 0) {
+        if (ts->tv_sec == min_sec) ts->tv_nsec = 0;
+        else { ts->tv_sec--; ts->tv_nsec += 1000000000; }
+    }
+}
+
+static struct timespec scaled_delay(const struct timespec *req, double speed) {
+    struct timespec result = {0, 0};
+    long double ns = (long double)req->tv_sec * 1000000000.0L + req->tv_nsec;
+    ts_add_ns(&result, bounded_ns(ns / speed));
+    return result;
 }
 
 /* Scale ONLY CLOCK_MONOTONIC_RAW. Touching CLOCK_MONOTONIC breaks Wine fsync
@@ -181,9 +219,22 @@ static void publish_anchor(unsigned ci, const struct timespec *real_t0,
     atomic_fetch_add_explicit(&a->seq, 1u, memory_order_release); /* even: stable */
 }
 
+static int parse_speed(const char *text, double *out) {
+    char *end;
+    errno = 0;
+    double v = strtod(text, &end);
+    if (end == text || errno || !isfinite(v) || v <= 0.0 || v > 1000.0) return 0;
+    while (isspace((unsigned char)*end)) end++;
+    if (*end) return 0;
+    *out = v;
+    return 1;
+}
+
 static int read_ctrl(double *out) {
-    int fd = open(ctrl_path, O_RDONLY | O_CLOEXEC);
+    if (ctrl_dir_fd < 0) return 0;
+    int fd = uma_open_runtime(ctrl_dir_fd, ctrl_name, O_RDONLY);
     if (fd < 0) return 0;
+    if (flock(fd, LOCK_SH | LOCK_NB) < 0) { close(fd); return 0; }
     char buf[64] = {0};
     int n = read(fd, buf, sizeof(buf) - 1);
     close(fd);
@@ -191,10 +242,7 @@ static int read_ctrl(double *out) {
     buf[n] = 0;
     while (n > 0 && (buf[n-1] == '\n' || buf[n-1] == ' ' || buf[n-1] == '\r' || buf[n-1] == '\t'))
         buf[--n] = 0;
-    double v = atof(buf);
-    if (v <= 0.0 || v > 1000.0) return 0;
-    *out = v;
-    return 1;
+    return parse_speed(buf, out);
 }
 
 /* Re-anchor every initialized clock at the current fake-time and swap to the
@@ -211,8 +259,8 @@ static void apply_speed_change(double new_speed) {
         anchor_t *a = &anchors[i];
         if (!a->initialized) continue;
         if (real_clock_gettime((clockid_t)i, &now) != 0) continue;
-        int64_t elapsed = ts_diff_ns(&now, &a->real_t0);
-        int64_t scaled  = (int64_t)((double)elapsed * cur);
+        long double elapsed = ts_diff_ns(&now, &a->real_t0);
+        int64_t scaled = bounded_ns(elapsed * cur);
         struct timespec fake_now = a->fake_t0;
         ts_add_ns(&fake_now, scaled);
         publish_anchor((unsigned)i, &now, &fake_now);
@@ -222,12 +270,12 @@ static void apply_speed_change(double new_speed) {
     pthread_mutex_unlock(&write_mutex);
 }
 
-static atomic_long last_poll_ns = 0;
+static atomic_uint_least64_t last_poll_ns = 0;
 static void maybe_poll_ctrl(void) {
     struct timespec now;
     if (real_clock_gettime(CLOCK_MONOTONIC_COARSE, &now) != 0) return;
-    long now_ns = (long)now.tv_sec * 1000000000L + now.tv_nsec;
-    long last = atomic_load_explicit(&last_poll_ns, memory_order_relaxed);
+    uint64_t now_ns = (uint64_t)now.tv_sec * 1000000000ULL + now.tv_nsec;
+    uint64_t last = atomic_load_explicit(&last_poll_ns, memory_order_relaxed);
     if (now_ns - last < POLL_INTERVAL_NS) return;
     if (!atomic_compare_exchange_strong_explicit(&last_poll_ns, &last, now_ns,
             memory_order_relaxed, memory_order_relaxed)) return;
@@ -258,8 +306,8 @@ static void scale_ts(clockid_t clk, struct timespec *real) {
         return;
     }
 
-    int64_t elapsed = ts_diff_ns(real, &real_t0);
-    int64_t scaled  = (int64_t)((double)elapsed * speed);
+    long double elapsed = ts_diff_ns(real, &real_t0);
+    int64_t scaled = bounded_ns(elapsed * speed);
     *real = fake_t0;
     ts_add_ns(real, scaled);
 }
@@ -316,11 +364,7 @@ int nanosleep(const struct timespec *req, struct timespec *rem) {
     }
     double s = load_speed();
     if (s > 0.0 && s != 1.0) {
-        struct timespec sc;
-        int64_t ns = (int64_t)req->tv_sec * 1000000000LL + req->tv_nsec;
-        ns = (int64_t)((double)ns / s);
-        sc.tv_sec  = ns / 1000000000LL;
-        sc.tv_nsec = ns % 1000000000LL;
+        struct timespec sc = scaled_delay(req, s);
         return real_nanosleep(&sc, rem);
     }
     return real_nanosleep(req, rem);
@@ -343,18 +387,14 @@ int clock_nanosleep(clockid_t clk, int flags, const struct timespec *req, struct
         if ((flags & TIMER_ABSTIME) && is_scalable(clk) && ci < MAX_CLOCK_ID) {
             struct timespec real_t0, fake_t0;
             if (snapshot_anchor(ci, &real_t0, &fake_t0)) {
-                int64_t fake_delta = ts_diff_ns(req, &fake_t0);
-                int64_t real_delta = (int64_t)((double)fake_delta / s);
+                long double fake_delta = ts_diff_ns(req, &fake_t0);
+                int64_t real_delta = bounded_ns(fake_delta / s);
                 struct timespec target = real_t0;
                 ts_add_ns(&target, real_delta);
                 return real_clock_nanosleep(clk, flags, &target, rem);
             }
         } else if (!(flags & TIMER_ABSTIME)) {
-            struct timespec sc;
-            int64_t ns = (int64_t)req->tv_sec * 1000000000LL + req->tv_nsec;
-            ns = (int64_t)((double)ns / s);
-            sc.tv_sec  = ns / 1000000000LL;
-            sc.tv_nsec = ns % 1000000000LL;
+            struct timespec sc = scaled_delay(req, s);
             return real_clock_nanosleep(clk, flags, &sc, rem);
         }
     }
@@ -369,8 +409,11 @@ int usleep(useconds_t us) {
         logf_("[%d/%s] usleep(%u)\n", getpid(), proc_comm, us);
     }
     double s = load_speed();
-    if (s > 0.0 && s != 1.0)
-        return real_usleep((useconds_t)((double)us / s));
+    if (s > 0.0 && s != 1.0) {
+        struct timespec req = {us / 1000000, (us % 1000000) * 1000};
+        struct timespec sc = scaled_delay(&req, s);
+        return real_nanosleep(&sc, NULL);
+    }
     return real_usleep(us);
 }
 
@@ -419,21 +462,24 @@ __attribute__((constructor)) static void uma_init(void) {
     real_clock_nanosleep = dlsym(RTLD_NEXT, "clock_nanosleep");
     real_usleep          = dlsym(RTLD_NEXT, "usleep");
 
-    const char *log_path = getenv("UMA_HOOK_LOG");
-    if (!log_path || !*log_path) log_path = LOG_PATH_DEFAULT;
-    log_fd = open(log_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    char log_path[PATH_MAX], log_name[NAME_MAX + 1];
+    if (uma_runtime_path("log", log_path, sizeof(log_path)) == 0) {
+        int parent_fd = uma_parent(log_path, log_name, sizeof(log_name));
+        if (parent_fd >= 0) {
+            log_fd = uma_open_runtime(parent_fd, log_name, O_WRONLY | O_CREAT | O_APPEND);
+            close(parent_fd);
+        }
+    }
 
-    const char *cp = getenv("UMA_HOOK_CTRL");
-    if (!cp || !*cp) cp = CTRL_PATH_DEFAULT;
-    snprintf(ctrl_path, sizeof(ctrl_path), "%s", cp);
+    if (uma_runtime_path("ctrl", ctrl_path, sizeof(ctrl_path)) == 0)
+        ctrl_dir_fd = uma_parent(ctrl_path, ctrl_name, sizeof(ctrl_name));
 
     quiet = getenv("UMA_HOOK_QUIET") && atoi(getenv("UMA_HOOK_QUIET"));
 
     double init_speed = 1.0;
     if (!read_ctrl(&init_speed)) {
         const char *m = getenv("UMA_SPEED");
-        if (m) init_speed = atof(m);
-        if (init_speed <= 0.0) init_speed = 1.0;
+        if (m) parse_speed(m, &init_speed);
     }
     store_speed_relaxed(init_speed);
 
@@ -464,6 +510,7 @@ static void dump_stats(void) {
 }
 
 __attribute__((destructor)) static void uma_fini(void) {
+    if (ctrl_dir_fd >= 0) close(ctrl_dir_fd);
     if (log_fd < 0) return;
     logf_("\n=== uma_hook UNLOAD pid=%d comm=%s ===\n", getpid(), proc_comm);
     dump_stats();

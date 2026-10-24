@@ -1,4 +1,4 @@
-name: Build Windows
+name: Build and test
 
 on:
   push:
@@ -7,7 +7,21 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
+  linux-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build hook and test runtime file security
+        run: make test
+      - name: Check Python and shell syntax
+        run: |
+          python3 -m py_compile runtime.py gui.py
+          bash -n launch.sh setspeed.sh watch.sh umagui
+
   build:
     runs-on: windows-latest
     defaults:
@@ -45,8 +59,20 @@ jobs:
             windows/uma_hook.dll
           if-no-files-found: error
 
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build, linux-test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v5
+        with:
+          name: UmaSpeedTrainer-windows
+          path: windows
+
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |

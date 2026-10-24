@@ -8,31 +8,26 @@ Run:
     python3 gui.py
 """
 
-import os
 import sys
+import runtime
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QPushButton, QLabel, QDoubleSpinBox,
     QVBoxLayout, QHBoxLayout,
 )
 
-CTRL = os.environ.get("UMA_HOOK_CTRL", "/tmp/uma-hook.ctrl")
-
-
 def read_speed():
     try:
-        with open(CTRL) as f:
-            return float(f.read().strip())
-    except (OSError, ValueError):
+        return runtime.read_speed()
+    except (OSError, ValueError, UnicodeError):
         return None
 
 
 def write_speed(value):
     try:
-        with open(CTRL, "w") as f:
-            f.write(f"{value}")
+        runtime.write_speed(value)
         return None
-    except OSError as e:
+    except (OSError, ValueError) as e:
         return str(e)
 
 
@@ -101,13 +96,17 @@ class UmaWindow(QWidget):
 
     def _on(self):
         err = write_speed(self.spin.value())
-        if err: self.status.setText(err)
-        self._refresh()
+        if err:
+            self.status.setText(err)
+        else:
+            self._refresh()
 
     def _off(self):
         err = write_speed(1.0)
-        if err: self.status.setText(err)
-        self._refresh()
+        if err:
+            self.status.setText(err)
+        else:
+            self._refresh()
 
 
 def main():
