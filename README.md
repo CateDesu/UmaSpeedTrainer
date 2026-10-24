@@ -1,5 +1,7 @@
 # UmaSpeedTrainer
 
+[Discord](https://discord.com/invite/TQJrbZcgKF)
+
 A 100% vibeslopped-by-Claude speed trainer for **Umamusume: Pretty Derby**. Lets you fast forward
 through the slow parts of training, races, and menus with a Set/Off
 button.
