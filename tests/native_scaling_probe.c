@@ -18,6 +18,20 @@ static int record_usleep(useconds_t delay) {
     return record_sleep(&req, NULL);
 }
 
+static int result(int status) {
+    if (status == EOVERFLOW || (status == -1 && errno == EOVERFLOW)) {
+        puts("overflow");
+        return 0;
+    }
+    return status;
+}
+
+static int extreme_clock(clockid_t clock, struct timespec *t) {
+    (void)clock;
+    *t = (struct timespec){LONG_MAX, 999999999};
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc != 2) return 2;
     real_nanosleep = record_sleep;
@@ -25,21 +39,26 @@ int main(int argc, char **argv) {
     real_usleep = record_usleep;
     struct timespec req = {0, 1000000};
     struct timespec zero = {0, 0};
-    if (!strcmp(argv[1], "nanosleep")) return nanosleep(&req, NULL);
-    if (!strcmp(argv[1], "usleep")) return usleep(1000);
+    if (!strcmp(argv[1], "nanosleep")) return result(nanosleep(&req, NULL));
+    if (!strcmp(argv[1], "usleep")) return result(usleep(1000));
+    if (!strcmp(argv[1], "tiny-delay")) {
+        req.tv_nsec = 1;
+        return nanosleep(&req, NULL);
+    }
     if (!strcmp(argv[1], "clock-relative"))
-        return clock_nanosleep(CLOCK_MONOTONIC_RAW, 0, &req, NULL);
+        return result(clock_nanosleep(CLOCK_MONOTONIC_RAW, 0, &req, NULL));
     if (!strcmp(argv[1], "large-delay")) {
         req.tv_sec = LONG_MAX;
         return nanosleep(&req, NULL);
     }
     if (!strcmp(argv[1], "clock-absolute")) {
-        publish_anchor(CLOCK_MONOTONIC_RAW, &zero, &zero);
         req.tv_sec = LONG_MAX;
         return clock_nanosleep(CLOCK_MONOTONIC_RAW, TIMER_ABSTIME, &req, NULL);
     }
     if (!strcmp(argv[1], "clock-scale")) {
-        publish_anchor(CLOCK_MONOTONIC_RAW, &zero, &zero);
+        atomic_fetch_add(&anchors[CLOCK_MONOTONIC_RAW].seq, 1u);
+        publish_anchor(CLOCK_MONOTONIC_RAW, &zero, &zero, load_speed());
+        real_clock_gettime = extreme_clock;
         req.tv_sec = LONG_MAX;
         scale_ts(CLOCK_MONOTONIC_RAW, &req);
     } else if (!strcmp(argv[1], "add-upper")) {

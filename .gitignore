@@ -3,6 +3,8 @@ lib64/*.so
 lib/*.so
 *.o
 *.so.dbg
+build/
+dist/
 
 # Python
 __pycache__/

@@ -1,4 +1,5 @@
 import os
+import fcntl
 from pathlib import Path
 import stat
 import subprocess
@@ -240,6 +241,24 @@ class RuntimeTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     runtime.write_speed(value)
+
+    def test_reader_rejects_truncated_and_nondecimal_values(self):
+        path = Path(runtime.runtime_path("ctrl"))
+        for value in (b"3" + b" " * 64, b"1_0", b"3\x00junk", b"\xff"):
+            with self.subTest(value=value):
+                path.write_bytes(value)
+                path.chmod(0o600)
+                with self.assertRaises(ValueError):
+                    runtime.read_speed()
+
+    def test_reader_does_not_wait_for_a_writer(self):
+        runtime.write_speed(3)
+        path = runtime.runtime_path("ctrl")
+        with runtime.open_runtime(path, os.O_WRONLY) as fd:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            result = subprocess.run([sys.executable, str(ROOT / "runtime.py"), "speed"],
+                                    env=os.environ, capture_output=True, timeout=2)
+        self.assertNotEqual(result.returncode, 0)
 
     def test_concurrent_writers_cannot_merge_control_values(self):
         runtime.write_speed(5)

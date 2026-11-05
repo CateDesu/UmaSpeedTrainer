@@ -6,6 +6,7 @@ import errno
 import fcntl
 import math
 import os
+import re
 from pathlib import Path
 import shlex
 import stat
@@ -98,8 +99,14 @@ def open_runtime(path, flags):
 
 def read_speed():
     with open_runtime(runtime_path("ctrl"), os.O_RDONLY) as fd:
-        fcntl.flock(fd, fcntl.LOCK_SH)
-        value = float(os.read(fd, 64).decode("ascii").strip())
+        fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        text = os.read(fd, 64)
+        if len(text) >= 64 or not re.fullmatch(
+            rb"[ \t\r\n]*[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?[ \t\r\n]*",
+            text,
+        ):
+            raise ValueError("invalid speed")
+        value = float(text)
     if not math.isfinite(value) or not 0 < value <= 1000:
         raise ValueError("speed must be > 0 and <= 1000")
     return value

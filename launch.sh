@@ -1,51 +1,5 @@
 #!/usr/bin/env bash
-# launch.sh: Steam launch wrapper for the uma_hook LD_PRELOAD.
-#
-# Steam Properties → Launch Options (use this script's absolute path;
-# `make install` prints the exact line for your checkout):
-#   /path/to/uma_hook/launch.sh %command%
-set -eu
-
-HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Provide both arches as separate entries; ld.so silently skips the
-# wrong-class one for each process (same trick Steam uses for gameoverlayrenderer).
-HOOK_ENTRY="$HOOK_DIR/lib64/libuma_hook.so:$HOOK_DIR/lib/libuma_hook.so"
-
-# --- knobs ---
-# Initial speed is 1.0 (passthrough) so the game finishes loading at real
-# time. Use setspeed.sh to bump it during gameplay; reset to 1.0 before
-# returning to any loading screen or network sync.
-: "${UMA_SPEED:=1.0}"
-UMA_HOOK_CTRL="$(python3 "$HOOK_DIR/runtime.py" path ctrl)"
-UMA_HOOK_LOG="$(python3 "$HOOK_DIR/runtime.py" path log)"
-: "${UMA_HOOK_QUIET:=0}"
-: "${UMA_HOOK_FILTER:=UmamusumePrettyDerby.exe}"
-
-export UMA_SPEED UMA_HOOK_CTRL UMA_HOOK_LOG UMA_HOOK_QUIET UMA_HOOK_FILTER
-
-# Compose LD_PRELOAD:
-#   1) APPEND our entry so gameoverlayrenderer stays first (avoids CRT crash on
-#      Arch/CachyOS where the overlay expects to lead the chain).
-#   2) Strip leading/trailing/duplicate ':' to avoid empty entries, since
-#      newer glibcs occasionally bail on those.
-clean_preload() {
-    local p="${1:-}"
-    # collapse runs of ':' and strip leading/trailing ones
-    p="${p//::/:}"
-    p="${p#:}"
-    p="${p%:}"
-    printf '%s' "$p"
-}
-
-OLD="$(clean_preload "${LD_PRELOAD:-}")"
-if [[ -n "$OLD" ]]; then
-    PRELOAD="${OLD}:${HOOK_ENTRY}"
-else
-    PRELOAD="$HOOK_ENTRY"
-fi
-
-# Reset speed and log only after validating their open file descriptors.
-python3 "$HOOK_DIR/runtime.py" initialize "$PRELOAD" "$@"
-export LD_PRELOAD="$PRELOAD"
-
-exec "$@"
+# Steam launch wrapper for a source checkout.
+set -euo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "$DIR/launcher.py" "$@"

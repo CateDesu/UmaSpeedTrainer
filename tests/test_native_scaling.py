@@ -46,10 +46,14 @@ class NativeScalingTests(unittest.TestCase):
 
     def test_supported_speeds_and_extreme_delays_are_representable(self):
         for speed in ("1", "0.5", "2", "1000", "1e-300"):
-            expected = min(1_000_000 / float(speed), (1 << 63) - 1)
+            expected = 1_000_000 / float(speed)
             for method in ("nanosleep", "usleep", "clock-relative"):
                 with self.subTest(speed=speed, method=method):
-                    seconds, nanos = map(int, self.probe_run(method, speed).split())
+                    output = self.probe_run(method, speed)
+                    if speed == "1e-300":
+                        self.assertEqual(output, "overflow")
+                        continue
+                    seconds, nanos = map(int, output.split())
                     self.assertEqual(seconds * 1_000_000_000 + nanos, int(expected))
                     self.assertTrue(0 <= nanos < 1_000_000_000)
 
@@ -58,6 +62,9 @@ class NativeScalingTests(unittest.TestCase):
             with self.subTest(mode=mode):
                 _, nanos = map(int, self.probe_run(mode, "1000").split())
                 self.assertTrue(0 <= nanos < 1_000_000_000)
+
+    def test_positive_subnanosecond_delay_rounds_up(self):
+        self.assertEqual(self.probe_run("tiny-delay", "1000"), "0 1")
 
     def test_native_control_reader_does_not_block_on_writer(self):
         self.control.write_text("3")

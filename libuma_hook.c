@@ -6,7 +6,7 @@
  * via objdump -T on Proton 10/11/Experimental/CachyOS), so QPC and other
  * Windows time APIs inside the Unity game route through here.
  *
- * Speed control: a single float in the private runtime directory, polled every 100 ms.
+ * Speed control: a float in the private runtime directory, polled every 100 ms.
  *
  * IMPORTANT, what we scale and why:
  *
@@ -39,6 +39,7 @@
 #include <stdatomic.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <dlfcn.h>
 #include <string.h>
 #include <unistd.h>
@@ -47,6 +48,7 @@
 #include <stdarg.h>
 #include <errno.h>
 #include <math.h>
+#include <limits.h>
 #include <ctype.h>
 #include <sys/file.h>
 #include "runtime_paths.h"
@@ -75,9 +77,10 @@ static atomic_uint_least64_t speed_bits;
 /* Per-clock anchor with a seqlock. Even seq == stable; odd seq == being written. */
 typedef struct {
     atomic_uint seq;
-    int initialized;
-    struct timespec real_t0;
-    struct timespec fake_t0;
+    atomic_int initialized;
+    atomic_long real_sec, real_nsec;
+    atomic_long fake_sec, fake_nsec;
+    atomic_uint_least64_t speed_bits;
 } anchor_t;
 static anchor_t anchors[MAX_CLOCK_ID];
 
@@ -97,8 +100,7 @@ static inline void store_speed_relaxed(double v) {
     atomic_store_explicit(&speed_bits, b, memory_order_relaxed);
 }
 
-/* Stats (advisory; race-tolerant). */
-typedef struct { uint64_t count; uint64_t logged; } stat_t;
+typedef struct { atomic_uint_least64_t count, logged; } stat_t;
 static stat_t s_clock_gettime[MAX_CLOCK_ID];
 static stat_t s_clock_nanosleep[MAX_CLOCK_ID];
 static stat_t s_gettimeofday, s_time, s_nanosleep, s_usleep;
@@ -109,6 +111,22 @@ static time_t (*real_time)(time_t*);
 static int (*real_nanosleep)(const struct timespec*, struct timespec*);
 static int (*real_clock_nanosleep)(clockid_t, int, const struct timespec*, struct timespec*);
 static int (*real_usleep)(useconds_t);
+
+static pthread_once_t symbols_once = PTHREAD_ONCE_INIT;
+
+static void resolve_symbols(void) {
+    real_clock_gettime   = dlsym(RTLD_NEXT, "clock_gettime");
+    real_gettimeofday    = dlsym(RTLD_NEXT, "gettimeofday");
+    real_time            = dlsym(RTLD_NEXT, "time");
+    real_nanosleep       = dlsym(RTLD_NEXT, "nanosleep");
+    real_clock_nanosleep = dlsym(RTLD_NEXT, "clock_nanosleep");
+    real_usleep          = dlsym(RTLD_NEXT, "usleep");
+}
+
+static void ensure_symbols(void) {
+    /* Dependencies can call these hooks before our constructor runs. */
+    pthread_once(&symbols_once, resolve_symbols);
+}
 
 static const char *clock_name(clockid_t c) {
     switch (c) {
@@ -175,13 +193,6 @@ static inline void ts_add_ns(struct timespec *ts, int64_t ns) {
     }
 }
 
-static struct timespec scaled_delay(const struct timespec *req, double speed) {
-    struct timespec result = {0, 0};
-    long double ns = (long double)req->tv_sec * 1000000000.0L + req->tv_nsec;
-    ts_add_ns(&result, bounded_ns(ns / speed));
-    return result;
-}
-
 /* Scale ONLY CLOCK_MONOTONIC_RAW. Touching CLOCK_MONOTONIC breaks Wine fsync
  * absolute futex deadlines (kernel doesn't see our scaling). */
 static inline int is_scalable(clockid_t c) {
@@ -189,34 +200,40 @@ static inline int is_scalable(clockid_t c) {
 }
 
 /* Snapshot anchor data lock-free via seqlock. Returns initialized flag. */
-static int snapshot_anchor(unsigned ci, struct timespec *real_t0, struct timespec *fake_t0) {
+static int snapshot_anchor(unsigned ci, struct timespec *real_t0, struct timespec *fake_t0,
+                           double *speed, struct timespec *now) {
     anchor_t *a = &anchors[ci];
-    for (int retry = 0; retry < 32; retry++) {
-        unsigned s1 = atomic_load_explicit(&a->seq, memory_order_acquire);
+    for (;;) {
+        unsigned s1 = atomic_load(&a->seq);
         if (s1 & 1u) continue;
-        int init = a->initialized;
-        struct timespec rt = a->real_t0;
-        struct timespec ft = a->fake_t0;
-        atomic_thread_fence(memory_order_acquire);
-        unsigned s2 = atomic_load_explicit(&a->seq, memory_order_relaxed);
+        int init = atomic_load(&a->initialized);
+        struct timespec rt = {atomic_load(&a->real_sec), atomic_load(&a->real_nsec)};
+        struct timespec ft = {atomic_load(&a->fake_sec), atomic_load(&a->fake_nsec)};
+        uint64_t bits = atomic_load(&a->speed_bits);
+        if (now) real_clock_gettime((clockid_t)ci, now);
+        unsigned s2 = atomic_load(&a->seq);
         if (s1 == s2) {
             *real_t0 = rt;
             *fake_t0 = ft;
+            memcpy(speed, &bits, sizeof(*speed));
             return init;
         }
     }
-    return 0;
 }
 
-/* Publish a new anchor. Must hold write_mutex. */
+/* Finish a write begun before sampling the clock, with write_mutex held. */
 static void publish_anchor(unsigned ci, const struct timespec *real_t0,
-                           const struct timespec *fake_t0) {
+                           const struct timespec *fake_t0, double speed) {
     anchor_t *a = &anchors[ci];
-    atomic_fetch_add_explicit(&a->seq, 1u, memory_order_release); /* odd: writing */
-    a->real_t0 = *real_t0;
-    a->fake_t0 = *fake_t0;
-    a->initialized = 1;
-    atomic_fetch_add_explicit(&a->seq, 1u, memory_order_release); /* even: stable */
+    uint64_t bits;
+    memcpy(&bits, &speed, sizeof(bits));
+    atomic_store(&a->real_sec, real_t0->tv_sec);
+    atomic_store(&a->real_nsec, real_t0->tv_nsec);
+    atomic_store(&a->fake_sec, fake_t0->tv_sec);
+    atomic_store(&a->fake_nsec, fake_t0->tv_nsec);
+    atomic_store(&a->speed_bits, bits);
+    atomic_store(&a->initialized, 1);
+    atomic_fetch_add(&a->seq, 1u);
 }
 
 static int parse_speed(const char *text, double *out) {
@@ -235,10 +252,10 @@ static int read_ctrl(double *out) {
     int fd = uma_open_runtime(ctrl_dir_fd, ctrl_name, O_RDONLY);
     if (fd < 0) return 0;
     if (flock(fd, LOCK_SH | LOCK_NB) < 0) { close(fd); return 0; }
-    char buf[64] = {0};
+    char buf[65] = {0};
     int n = read(fd, buf, sizeof(buf) - 1);
     close(fd);
-    if (n <= 0) return 0;
+    if (n <= 0 || n == (int)sizeof(buf) - 1 || memchr(buf, 0, n)) return 0;
     buf[n] = 0;
     while (n > 0 && (buf[n-1] == '\n' || buf[n-1] == ' ' || buf[n-1] == '\r' || buf[n-1] == '\t'))
         buf[--n] = 0;
@@ -258,24 +275,29 @@ static void apply_speed_change(double new_speed) {
     for (int i = 0; i < MAX_CLOCK_ID; i++) {
         anchor_t *a = &anchors[i];
         if (!a->initialized) continue;
-        if (real_clock_gettime((clockid_t)i, &now) != 0) continue;
-        long double elapsed = ts_diff_ns(&now, &a->real_t0);
-        int64_t scaled = bounded_ns(elapsed * cur);
-        struct timespec fake_now = a->fake_t0;
+        atomic_fetch_add(&a->seq, 1u);
+        if (real_clock_gettime((clockid_t)i, &now) != 0) {
+            atomic_fetch_add(&a->seq, 1u);
+            continue;
+        }
+        struct timespec real_t0 = {atomic_load(&a->real_sec), atomic_load(&a->real_nsec)};
+        long double elapsed = ts_diff_ns(&now, &real_t0);
+        int64_t scaled  = bounded_ns(elapsed * cur);
+        struct timespec fake_now = {atomic_load(&a->fake_sec), atomic_load(&a->fake_nsec)};
         ts_add_ns(&fake_now, scaled);
-        publish_anchor((unsigned)i, &now, &fake_now);
+        publish_anchor((unsigned)i, &now, &fake_now, new_speed);
     }
     store_speed_relaxed(new_speed);
     logf_("[uma_hook] speed %g -> %g (pid %d)\n", cur, new_speed, getpid());
     pthread_mutex_unlock(&write_mutex);
 }
 
-static atomic_uint_least64_t last_poll_ns = 0;
+static atomic_int_fast64_t last_poll_ns = 0;
 static void maybe_poll_ctrl(void) {
     struct timespec now;
     if (real_clock_gettime(CLOCK_MONOTONIC_COARSE, &now) != 0) return;
-    uint64_t now_ns = (uint64_t)now.tv_sec * 1000000000ULL + now.tv_nsec;
-    uint64_t last = atomic_load_explicit(&last_poll_ns, memory_order_relaxed);
+    int_fast64_t now_ns = (int64_t)now.tv_sec * 1000000000LL + now.tv_nsec;
+    int_fast64_t last = atomic_load_explicit(&last_poll_ns, memory_order_relaxed);
     if (now_ns - last < POLL_INTERVAL_NS) return;
     if (!atomic_compare_exchange_strong_explicit(&last_poll_ns, &last, now_ns,
             memory_order_relaxed, memory_order_relaxed)) return;
@@ -290,24 +312,23 @@ static void scale_ts(clockid_t clk, struct timespec *real) {
     unsigned ci = (unsigned)clk;
     if (ci >= MAX_CLOCK_ID) return;
 
-    double speed = load_speed();
-
+    double speed;
     struct timespec real_t0, fake_t0;
-    int init = snapshot_anchor(ci, &real_t0, &fake_t0);
-
-    /* Fast path: nothing to scale and no anchor to maintain. */
-    if (speed == 1.0 && !init) return;
-
-    if (!init) {
+    while (!snapshot_anchor(ci, &real_t0, &fake_t0, &speed, real)) {
+        if (load_speed() == 1.0) return;
         pthread_mutex_lock(&write_mutex);
-        if (!anchors[ci].initialized)
-            publish_anchor(ci, real, real);
+        if (!anchors[ci].initialized && load_speed() != 1.0) {
+            atomic_fetch_add(&anchors[ci].seq, 1u);
+            real_clock_gettime(clk, real);
+            publish_anchor(ci, real, real, load_speed());
+        }
+        int initialized = anchors[ci].initialized;
         pthread_mutex_unlock(&write_mutex);
-        return;
+        if (!initialized) return;
     }
 
     long double elapsed = ts_diff_ns(real, &real_t0);
-    int64_t scaled = bounded_ns(elapsed * speed);
+    int64_t scaled  = bounded_ns(elapsed * speed);
     *real = fake_t0;
     ts_add_ns(real, scaled);
 }
@@ -315,8 +336,10 @@ static void scale_ts(clockid_t clk, struct timespec *real) {
 /* === Hooks === */
 
 int clock_gettime(clockid_t clk, struct timespec *ts) {
+    ensure_symbols();
     int r = real_clock_gettime(clk, ts);
-    if (!hook_active) return r;
+    if (!hook_active || r != 0) return r;
+    int saved_errno = errno;
 
     maybe_poll_ctrl();
 
@@ -329,33 +352,68 @@ int clock_gettime(clockid_t clk, struct timespec *ts) {
         }
     }
     if (r == 0) scale_ts(clk, ts);
+    errno = saved_errno;
     return r;
 }
 
 int gettimeofday(struct timeval *tv, void *tz) {
+    ensure_symbols();
     int r = real_gettimeofday(tv, tz);
     if (!hook_active) return r;
+    int saved_errno = errno;
     s_gettimeofday.count++;
     if (s_gettimeofday.logged < MAX_LOGGED_CALLS) {
         s_gettimeofday.logged++;
         logf_("[%d/%s] gettimeofday\n", getpid(), proc_comm);
     }
+    errno = saved_errno;
     return r;
 }
 
 time_t time(time_t *t) {
+    ensure_symbols();
     time_t r = real_time(t);
     if (!hook_active) return r;
+    int saved_errno = errno;
     s_time.count++;
     if (s_time.logged < MAX_LOGGED_CALLS) {
         s_time.logged++;
         logf_("[%d/%s] time -> %ld\n", getpid(), proc_comm, (long)r);
     }
+    errno = saved_errno;
     return r;
 }
 
+static int valid_duration(const struct timespec *t) {
+    return t && t->tv_sec >= 0 && t->tv_nsec >= 0 && t->tv_nsec < 1000000000;
+}
+
+/* Check the range before converting very slow or long waits. */
+static int scale_duration(const struct timespec *t, long double factor,
+                          struct timespec *result) {
+    long double nanoseconds = ((long double)t->tv_sec * 1e9L + t->tv_nsec) * factor;
+    long double seconds = nanoseconds / 1e9L;
+    if (seconds >= (long double)LONG_MAX) return 0;
+    result->tv_sec = (time_t)seconds;
+    long double fraction = nanoseconds - (long double)result->tv_sec * 1e9L;
+    if (fraction < 0) fraction = 0;
+    result->tv_nsec = (long)fraction;
+    if (fraction > result->tv_nsec) result->tv_nsec++;
+    if (result->tv_nsec >= 1000000000) { result->tv_sec++; result->tv_nsec = 0; }
+    return 1;
+}
+
+static void restore_remaining(struct timespec *remaining, double speed) {
+    struct timespec scaled;
+    if (!scale_duration(remaining, speed, &scaled))
+        scaled = (struct timespec){LONG_MAX, 999999999};
+    *remaining = scaled;
+}
+
 int nanosleep(const struct timespec *req, struct timespec *rem) {
-    if (!hook_active) return real_nanosleep(req, rem);
+    ensure_symbols();
+    if (!hook_active || !valid_duration(req)) return real_nanosleep(req, rem);
+    int saved_errno = errno;
     s_nanosleep.count++;
     if (s_nanosleep.logged < MAX_LOGGED_CALLS) {
         s_nanosleep.logged++;
@@ -363,15 +421,21 @@ int nanosleep(const struct timespec *req, struct timespec *rem) {
               (long)req->tv_sec, req->tv_nsec);
     }
     double s = load_speed();
+    errno = saved_errno;
     if (s > 0.0 && s != 1.0) {
-        struct timespec sc = scaled_delay(req, s);
-        return real_nanosleep(&sc, rem);
+        struct timespec sc;
+        if (!scale_duration(req, 1.0L / s, &sc)) { errno = EOVERFLOW; return -1; }
+        int r = real_nanosleep(&sc, rem);
+        if (r == -1 && errno == EINTR && rem) restore_remaining(rem, s);
+        return r;
     }
     return real_nanosleep(req, rem);
 }
 
 int clock_nanosleep(clockid_t clk, int flags, const struct timespec *req, struct timespec *rem) {
-    if (!hook_active) return real_clock_nanosleep(clk, flags, req, rem);
+    ensure_symbols();
+    if (!hook_active || !valid_duration(req)) return real_clock_nanosleep(clk, flags, req, rem);
+    int saved_errno = errno;
     unsigned ci = (unsigned)clk;
     if (ci < MAX_CLOCK_ID) {
         s_clock_nanosleep[ci].count++;
@@ -383,36 +447,34 @@ int clock_nanosleep(clockid_t clk, int flags, const struct timespec *req, struct
         }
     }
     double s = load_speed();
-    if (s > 0.0 && s != 1.0) {
-        if ((flags & TIMER_ABSTIME) && is_scalable(clk) && ci < MAX_CLOCK_ID) {
-            struct timespec real_t0, fake_t0;
-            if (snapshot_anchor(ci, &real_t0, &fake_t0)) {
-                long double fake_delta = ts_diff_ns(req, &fake_t0);
-                int64_t real_delta = bounded_ns(fake_delta / s);
-                struct timespec target = real_t0;
-                ts_add_ns(&target, real_delta);
-                return real_clock_nanosleep(clk, flags, &target, rem);
-            }
-        } else if (!(flags & TIMER_ABSTIME)) {
-            struct timespec sc = scaled_delay(req, s);
-            return real_clock_nanosleep(clk, flags, &sc, rem);
-        }
+    errno = saved_errno;
+    /* RAW cannot be slept on. All supported absolute clocks stay real. */
+    if (s > 0.0 && s != 1.0 && !(flags & TIMER_ABSTIME)) {
+        struct timespec sc;
+        if (!scale_duration(req, 1.0L / s, &sc)) return EOVERFLOW;
+        int r = real_clock_nanosleep(clk, flags, &sc, rem);
+        if (r == EINTR && rem) restore_remaining(rem, s);
+        errno = saved_errno;
+        return r;
     }
     return real_clock_nanosleep(clk, flags, req, rem);
 }
 
 int usleep(useconds_t us) {
+    ensure_symbols();
     if (!hook_active) return real_usleep(us);
+    int saved_errno = errno;
     s_usleep.count++;
     if (s_usleep.logged < MAX_LOGGED_CALLS) {
         s_usleep.logged++;
         logf_("[%d/%s] usleep(%u)\n", getpid(), proc_comm, us);
     }
     double s = load_speed();
+    errno = saved_errno;
     if (s > 0.0 && s != 1.0) {
-        struct timespec req = {us / 1000000, (us % 1000000) * 1000};
-        struct timespec sc = scaled_delay(&req, s);
-        return real_nanosleep(&sc, NULL);
+        struct timespec duration = {us / 1000000, (us % 1000000) * 1000L};
+        if (!scale_duration(&duration, 1.0L / s, &duration)) { errno = EOVERFLOW; return -1; }
+        return real_nanosleep(&duration, NULL);
     }
     return real_usleep(us);
 }
@@ -455,12 +517,7 @@ static int filter_matches(const char *filter) {
 }
 
 __attribute__((constructor)) static void uma_init(void) {
-    real_clock_gettime   = dlsym(RTLD_NEXT, "clock_gettime");
-    real_gettimeofday    = dlsym(RTLD_NEXT, "gettimeofday");
-    real_time            = dlsym(RTLD_NEXT, "time");
-    real_nanosleep       = dlsym(RTLD_NEXT, "nanosleep");
-    real_clock_nanosleep = dlsym(RTLD_NEXT, "clock_nanosleep");
-    real_usleep          = dlsym(RTLD_NEXT, "usleep");
+    ensure_symbols();
 
     char log_path[PATH_MAX], log_name[NAME_MAX + 1];
     if (uma_runtime_path("log", log_path, sizeof(log_path)) == 0) {

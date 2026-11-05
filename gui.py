@@ -34,8 +34,9 @@ def write_speed(value):
 class UmaWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("uma_hook")
+        self.setWindowTitle("Uma Speed Trainer")
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        self._error = None
 
         root = QVBoxLayout(self)
         root.setSpacing(10)
@@ -83,6 +84,10 @@ class UmaWindow(QWidget):
         self.resize(280, 180)
 
     def _refresh(self):
+        if self._error:
+            self.status.setText(self._error)
+            self.status.setStyleSheet("color: #e57373;")
+            return
         v = read_speed()
         if v is None:
             self.status.setText("· no hook ·")
@@ -95,18 +100,12 @@ class UmaWindow(QWidget):
             self.status.setStyleSheet("color: #4caf50;")
 
     def _on(self):
-        err = write_speed(self.spin.value())
-        if err:
-            self.status.setText(err)
-        else:
-            self._refresh()
+        self._error = write_speed(self.spin.value())
+        self._refresh()
 
     def _off(self):
-        err = write_speed(1.0)
-        if err:
-            self.status.setText(err)
-        else:
-            self._refresh()
+        self._error = write_speed(1.0)
+        self._refresh()
 
 
 def main():
