@@ -30,6 +30,7 @@ for copyright in /usr/share/doc/*/copyright; do
     cp -L "$copyright" "build/linux/licenses/$(basename "$(dirname "$copyright")").copyright"
 done
 cp /usr/share/common-licenses/{GPL-2,GPL-3,LGPL-2,LGPL-2.1,LGPL-3,Apache-2.0} build/linux/licenses/
+cp /opt/python/licenses/* build/linux/licenses/
 cp -R build/linux/licenses build/linux/source/
 tar --sort=name --mtime="@${SOURCE_DATE_EPOCH}" --owner=0 --group=0 --numeric-owner \
     -czf dist/UmaSpeedTrainer-linux-source.tar.gz -C build/linux/source .

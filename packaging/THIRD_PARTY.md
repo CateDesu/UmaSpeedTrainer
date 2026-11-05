@@ -21,8 +21,8 @@ and the exact upstream source releases are also available here:
   https://pypi.org/project/PyQt6-sip/13.10.2/#files
 * Qt 6.9.2, LGPLv3 and third party notices in the source archive:
   https://download.qt.io/archive/qt/6.9/6.9.2/single/qt-everywhere-src-6.9.2.tar.xz
-* Python 3.9, PSF and included third party licenses:
-  https://www.python.org/downloads/source/
+* Python 3.12.16, PSF and included third party licenses:
+  https://www.python.org/ftp/python/3.12.16/Python-3.12.16.tar.xz
 * PyInstaller 6.22.3, GPLv2 with the bootloader distribution exception:
   https://pypi.org/project/pyinstaller/6.22.3/#files
 

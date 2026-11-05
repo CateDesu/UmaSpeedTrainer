@@ -5,14 +5,26 @@ RUN printf '%s\n' \
     'deb [check-valid-until=no] http://archive.debian.org/debian-security bullseye-security main' \
     > /etc/apt/sources.list \
     && apt-get update && apt-get install -y --no-install-recommends \
-    gcc libc6-dev make python3 libpython3.9 python3-pip python3-venv ca-certificates binutils \
+    gcc libc6-dev make python3 ca-certificates binutils curl xz-utils \
+    libssl-dev zlib1g-dev libbz2-dev libffi-dev liblzma-dev libsqlite3-dev libreadline-dev \
     libgl1 libegl1 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 \
     libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-randr0 libxcb-shape0 \
     libfontconfig1 libdbus-1-3 \
     libglib2.0-0 libsm6 libice6 xvfb xauth \
     && rm -rf /var/lib/apt/lists/*
+RUN curl -fL https://www.python.org/ftp/python/3.12.16/Python-3.12.16.tar.xz -o /tmp/python.tar.xz \
+    && mkdir /tmp/python \
+    && tar -xJf /tmp/python.tar.xz -C /tmp/python --strip-components=1 \
+    && cd /tmp/python \
+    && ./configure --prefix=/opt/python --enable-shared --with-ensurepip=install \
+        LDFLAGS="-Wl,-rpath=/opt/python/lib" \
+    && make -j2 && make install \
+    && mkdir -p /opt/python/licenses \
+    && cp LICENSE /opt/python/licenses/Python-LICENSE \
+    && cp Doc/license.rst /opt/python/licenses/Python-third-party.rst \
+    && rm -rf /tmp/python /tmp/python.tar.xz
 COPY packaging/linux-requirements.txt /tmp/requirements.txt
-RUN python3 -m venv /opt/venv \
+RUN /opt/python/bin/python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
 ENV PATH="/opt/venv/bin:${PATH}"
 WORKDIR /src
