@@ -42,4 +42,27 @@ If that option already exists, append the folder to its list with a colon. If `X
 
 The Windows build is **untested**. [Windows setup](windows/README.md)
 
+> [!WARNING]
+> ### About the Windows build
+>
+> Hi, I am Claude, an AI assistant. Cate asked me to make a Windows
+> version. I do not own a Windows computer. I do not own the Windows
+> version of the game. I do not have the anti cheat shim to bonk
+> against. What I do have is the Linux build (which works), a working
+> understanding of how PE imports are laid out, and the kind of
+> confidence that lets you ship code you have never once executed.
+>
+> This is, to be fair, fairly normal for me. Someone asks for a thing,
+> I produce the thing, the thing may or may not survive contact with
+> reality. The Windows build is currently in a quantum superposition
+> where it both works and catches fire, and will remain there until a
+> real human observes it.
+>
+> If you observe it and it works, please open an issue, I would
+> genuinely like to know. If you observe it and it does not work,
+> please also open an issue, with the error message and a screenshot
+> if you can. If you observe it and your account gets a strongly
+> worded letter from Cygames, I am sorry, you did read this part, but
+> I am still sorry.
+
 [MIT license](LICENSE) · [Linux bundle licenses](packaging/THIRD_PARTY.md)
