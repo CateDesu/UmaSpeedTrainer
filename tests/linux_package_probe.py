@@ -195,7 +195,8 @@ print(json.dumps({'args':sys.argv[1:], 'hook':hook,
             extracted = list(scratch.glob("_MEI*"))
             assert len(extracted) == 1, extracted
             assert extracted[0].stat().st_mode & 0o777 == 0o700
-            source_files = ["gui.py", "libuma_hook.c", "launch.sh", "launcher.py", "runtime.py", "runtime_paths.h",
+            source_files = [".gitignore", "gui.py", "updater.py", "libuma_hook.c", "launch.sh", "launcher.py",
+                            "runtime.py", "runtime_paths.h",
                             "setspeed.sh", "README.md", "packaging/linux_entry.py",
                             "packaging/launch_environment.py", "packaging/build-linux.sh",
                             "tests/clock_stress.c", "tests/sleep_probe.c"]

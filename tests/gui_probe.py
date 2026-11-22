@@ -12,13 +12,27 @@ with tempfile.TemporaryDirectory(prefix="uma-gui-test-") as temp:
     os.environ["XDG_CONFIG_HOME"] = temp
     os.environ["XDG_CACHE_HOME"] = temp
     os.environ["UMA_HOOK_CTRL"] = str(Path(temp) / "ctrl")
-    from PyQt6.QtWidgets import QApplication
-    from gui import UmaWindow
+    from PyQt6.QtWidgets import QApplication, QMessageBox
+    import gui
+    from unittest.mock import patch
+    from PyQt6.QtTest import QTest
 
     app = QApplication([])
-    window = UmaWindow()
+    clone = Path(temp) / "clone"
+    (clone / ".git").mkdir(parents=True)
+    with patch.object(gui, "__file__", str(clone / "gui.py")):
+        window = gui.UmaWindow()
     window.show()
     app.processEvents()
+    assert window.update_btn.isVisible()
+    with patch.object(gui.updater, "check_source_update", return_value=None) as check:
+        window.update_btn.click()
+        for _ in range(200):
+            QTest.qWait(10)
+            if window.update_btn.isEnabled():
+                break
+        check.assert_called_once_with(clone)
+        assert "latest upstream" in window.update_status.text()
     assert "no hook" in window.status.text()
     window.spin.setValue(4.25)
     window.on_btn.click()
@@ -59,6 +73,22 @@ with tempfile.TemporaryDirectory(prefix="uma-gui-test-") as temp:
     assert "OFF" in window.status.text()
     window._refresh()
     assert "OFF" in window.status.text()
+    window.close()
+
+    program = Path(temp) / "local artifact"
+    window = gui.UmaWindow(program)
+    release = gui.updater.Release("v1.0.0", 42, "digest")
+    with (patch.object(gui.updater, "check_for_update", return_value=release),
+          patch.object(gui.updater, "install_update") as install,
+          patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No) as question):
+        window.update_btn.click()
+        for _ in range(200):
+            QTest.qWait(10)
+            if window.update_btn.isEnabled():
+                break
+        assert "may be older than your current build" in question.call_args.args[2]
+        assert question.call_args.args[-1] == QMessageBox.StandardButton.No
+        install.assert_not_called()
     window.close()
     app.processEvents()
     print("GUI controls and write errors passed")

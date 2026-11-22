@@ -8,11 +8,13 @@ Run:
     python3 gui.py
 """
 
+from pathlib import Path
 import sys
 import runtime
-from PyQt6.QtCore import Qt, QTimer
+import updater
+from PyQt6.QtCore import Qt, QThread, QTimer
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QPushButton, QLabel, QDoubleSpinBox,
+    QApplication, QWidget, QPushButton, QLabel, QDoubleSpinBox, QMessageBox,
     QVBoxLayout, QHBoxLayout,
 )
 
@@ -31,8 +33,23 @@ def write_speed(value):
         return str(e)
 
 
+class UpdateTask(QThread):
+    def __init__(self, parent, operation, *args):
+        super().__init__(parent)
+        self.operation = operation
+        self.args = args
+        self.result = None
+        self.error = None
+
+    def run(self):
+        try:
+            self.result = self.operation(*self.args)
+        except Exception as error:
+            self.error = str(error)
+
+
 class UmaWindow(QWidget):
-    def __init__(self):
+    def __init__(self, program=None):
         super().__init__()
         self.setWindowTitle("Uma Speed Trainer")
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
@@ -76,6 +93,19 @@ class UmaWindow(QWidget):
         btns.addWidget(self.off_btn)
         root.addLayout(btns)
 
+        self._source = program is None
+        self._update_target = Path(__file__).resolve().parent if self._source else program
+        self._update_task = None
+        if program is not None or (self._update_target / ".git").exists():
+            self.update_btn = QPushButton("Update")
+            self.update_btn.clicked.connect(self._check_update)
+            root.addWidget(self.update_btn)
+            self.update_status = QLabel()
+            self.update_status.setTextFormat(Qt.TextFormat.PlainText)
+            self.update_status.setWordWrap(True)
+            self.update_status.hide()
+            root.addWidget(self.update_status)
+
         timer = QTimer(self)
         timer.timeout.connect(self._refresh)
         timer.start(300)
@@ -107,10 +137,79 @@ class UmaWindow(QWidget):
         self._error = write_speed(1.0)
         self._refresh()
 
+    def _start_update_task(self, message, finished, operation, *args):
+        self.update_btn.setEnabled(False)
+        self.update_status.setText(message)
+        self.update_status.show()
+        self._update_task = UpdateTask(self, operation, self._update_target, *args)
+        self._update_task.finished.connect(finished)
+        self._update_task.start()
 
-def main():
+    def _take_update_task(self):
+        task = self._update_task
+        self._update_task = None
+        task.deleteLater()
+        if task.error is not None:
+            self.update_status.setText(f"Update failed. {task.error}")
+            self.update_btn.setEnabled(True)
+        return task
+
+    def _check_update(self):
+        if self._source:
+            self._start_update_task("Checking upstream…", self._update_checked, updater.check_source_update)
+        else:
+            self._start_update_task("Checking GitHub…", self._update_checked, updater.check_for_update)
+
+    def _update_checked(self):
+        task = self._take_update_task()
+        if task.error is not None:
+            return
+        release = task.result
+        if release is None:
+            self.update_status.setText("Your checkout includes the latest upstream changes."
+                                       if self._source else "You already have the latest release.")
+            self.update_btn.setEnabled(True)
+            return
+        if self._source:
+            if release.head == release.commit:
+                prompt = f"Finish the interrupted update by rebuilding the hooks for {release.commit[:12]}?"
+            else:
+                prompt = f"Update this checkout to {release.commit[:12]} and rebuild the trainer?"
+        else:
+            prompt = (f"Replace this executable with the official release {release.tag}?\n\n"
+                      "This release may be older than your current build.")
+        answer = QMessageBox.question(
+            self, "Update Uma Speed Trainer",
+            f"{prompt}\n\n"
+            "You can keep playing. The game will use the new hook the next time you launch it.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            if self._source:
+                self._start_update_task("Building the update…", self._update_installed,
+                                        updater.install_source_update, release)
+            else:
+                self._start_update_task(f"Downloading {release.tag}…", self._update_installed,
+                                        updater.install_update, release)
+        else:
+            self.update_status.hide()
+            self.update_btn.setEnabled(True)
+
+    def _update_installed(self):
+        if self._take_update_task().error is None:
+            self.update_status.setText("Update installed. Reopen the trainer to use it.")
+
+    def closeEvent(self, event):
+        if self._update_task is not None:
+            event.ignore()
+        else:
+            super().closeEvent(event)
+
+
+def main(program=None):
     app = QApplication(sys.argv)
-    w = UmaWindow()
+    w = UmaWindow(program)
     w.show()
     sys.exit(app.exec())
 

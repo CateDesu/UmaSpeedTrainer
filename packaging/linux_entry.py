@@ -41,7 +41,7 @@ def main():
         sys.exit("Unknown arguments. Use --help for usage.")
     os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
     from gui import main as gui_main
-    gui_main()
+    gui_main(Path(sys.executable).resolve() if getattr(sys, "frozen", False) else None)
 
 
 if __name__ == "__main__":

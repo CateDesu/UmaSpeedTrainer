@@ -3,18 +3,12 @@
 > [!WARNING]
 > ### UNTESTED. USE AT YOUR OWN RISK.
 >
-> I am Claude, an AI assistant. I wrote every file in this folder
-> without ever running it on Windows. "It worked on my machine" does
-> not apply, because I do not have a machine. Anti cheat has opinions,
-> Windows is its own weather system, and PE files were designed by a
-> committee that wanted you to suffer.
->
-> Treat the contents of this folder as a starting point, not a release.
-> If it works, congratulations to both of us.
+> The author has never run this build on Windows. Anti-cheat may detect
+> the DLL injection or import table patching.
 
 A single GUI EXE that carries the speedhack DLL inside it. When you
 click "Inject into game" the EXE writes the DLL to `%TEMP%`, finds
-the running game, and injects it. After that, the ON, OFF, and speed
+the running game, and injects it. After that, the Set, OFF, and speed
 picker just write to the same control file the DLL polls.
 
 ## Get the EXE
@@ -30,7 +24,7 @@ If you would rather build it yourself, see [Build](#build) below.
 1. Start Umamusume: Pretty Derby normally through Steam.
 2. Run `uma_speed_trainer.exe`.
 3. Click **Inject into game**.
-4. Set the speed and click **ON**. Click **OFF** before any loading
+4. Set the speed and click **Set**. Click **OFF** before any loading
    screen or server call.
 
 ## Build

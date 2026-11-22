@@ -37,7 +37,6 @@ jobs:
           update: false
           install: >-
             mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-tools
             make
 
       - name: Build EXE and DLL
@@ -105,4 +104,4 @@ jobs:
 
             Download `UmaSpeedTrainer-linux-x86_64` for Linux or `uma_speed_trainer.exe` for Windows. See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for setup instructions.
 
-            > Built automatically. Untested by the author. Claude wrote the Windows port.
+            > Built automatically. Untested by the author.

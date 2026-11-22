@@ -5,7 +5,7 @@ RUN printf '%s\n' \
     'deb [check-valid-until=no] http://archive.debian.org/debian-security bullseye-security main' \
     > /etc/apt/sources.list \
     && apt-get update && apt-get install -y --no-install-recommends \
-    gcc libc6-dev make python3 ca-certificates binutils curl xz-utils \
+    gcc libc6-dev make git python3 ca-certificates binutils curl xz-utils \
     libssl-dev zlib1g-dev libbz2-dev libffi-dev liblzma-dev libsqlite3-dev libreadline-dev \
     libgl1 libegl1 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 \
     libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-randr0 libxcb-shape0 \
