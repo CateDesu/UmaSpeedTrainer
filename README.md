@@ -1,5 +1,7 @@
 # UmaSpeedTrainer
 
+A surprising amount of people are seemingly using this. I added an update function and cleaned up the README slop :)
+
 Speed up **Umamusume: Pretty Derby**. Choose a speed from 1× to 5× and press **Set**. Press **OFF** to return to normal. Using a trainer may put your game account at risk.
 
 ## Linux setup
