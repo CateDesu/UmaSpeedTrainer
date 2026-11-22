@@ -1,5 +1,7 @@
 # UmaSpeedTrainer
 
+Join the [Discord](https://discord.com/invite/TQJrbZcgKF) if you need help or something.
+
 A surprising amount of people are seemingly using this. I added an update function and cleaned up the README slop :)
 
 Speed up **Umamusume: Pretty Derby**. Choose a speed from 1× to 5× and press **Set**. Press **OFF** to return to normal. Using a trainer may put your game account at risk.
@@ -8,7 +10,7 @@ Speed up **Umamusume: Pretty Derby**. Choose a speed from 1× to 5× and press *
 
 Use native Steam with Proton. Flatpak and Snap Steam are unsupported.
 
-- **Portable download.** Sign in to GitHub, open a successful build, and extract the `UmaSpeedTrainer-linux-x86_64` artifact into `~/Applications/`. [Linux builds](https://github.com/CateDesu/UmaSpeedTrainer/actions/workflows/build.yml)
+- **[Download for Linux](https://github.com/CateDesu/UmaSpeedTrainer/releases/latest/download/UmaSpeedTrainer-linux-x86_64)** and save the file in `~/Applications/`.
 
   ```sh
   chmod +x ~/Applications/UmaSpeedTrainer-linux-x86_64
@@ -16,7 +18,11 @@ Use native Steam with Proton. Flatpak and Snap Steam are unsupported.
   ```
 - **Git clone.** Install GCC, Make, Python 3 and PyQt6. Run `make install` from the clone. Use a folder without spaces or colons.
 
-Paste the printed command into the game’s **Properties → General → Launch Options**. If you already use a wrapper like `mullvad-exclude %command%`, replace just `%command%` with the printed command.
+Paste the printed command into the game’s **Properties → General → Launch Options**. If you already use a wrapper, replace just `%command%` with the printed command. A portable install in `~/Applications/` looks like this:
+
+```sh
+"$HOME/Applications/UmaSpeedTrainer-linux-x86_64" --steam-launch %command%
+```
 
 Launch the game through Steam, then open the downloaded trainer or **Uma Hook** from your app menu. Closing the trainer leaves the speed active. Relaunching the game resets it to 1×.
 
@@ -24,10 +30,10 @@ Launch the game through Steam, then open the downloaded trainer or **Uma Hook** 
 
 ### If Set has no effect
 
-Steam may need access to the trainer’s control folder. Put this before your launch command, including before `mullvad-exclude` if you use it:
+Steam may need access to the trainer’s control folder. Add the folder setting at the start of your launch command, as in this portable example:
 
 ```sh
-PRESSURE_VESSEL_FILESYSTEMS_RW="$XDG_RUNTIME_DIR/uma-hook"
+PRESSURE_VESSEL_FILESYSTEMS_RW="$XDG_RUNTIME_DIR/uma-hook" "$HOME/Applications/UmaSpeedTrainer-linux-x86_64" --steam-launch %command%
 ```
 
 If that option already exists, append the folder to its list with a colon. If `XDG_RUNTIME_DIR` is unset, use `/tmp/uma-hook-$(id -u)`. For custom `UMA_HOOK_CTRL` or `UMA_HOOK_LOG` paths, share their parent folders. Restart the game and press **Set** again.
@@ -36,4 +42,4 @@ If that option already exists, append the folder to its list with a colon. If `X
 
 The Windows build is **untested**. [Windows setup](windows/README.md)
 
-[Discord](https://discord.com/invite/TQJrbZcgKF) · [MIT license](LICENSE) · [Linux bundle licenses](packaging/THIRD_PARTY.md)
+[MIT license](LICENSE) · [Linux bundle licenses](packaging/THIRD_PARTY.md)
