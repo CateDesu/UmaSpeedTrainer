@@ -2,7 +2,8 @@
 
 Join the [Discord](https://discord.com/invite/TQJrbZcgKF) if you need help or something.
 
-A surprising amount of people are seemingly using this. I added an update function and cleaned up the README slop :)
+A surprising amount of people are seemingly using this.\
+I added an update function and cleaned up the README :)
 
 Speed up **Umamusume: Pretty Derby**. Choose a speed from 1× to 5× and press **Set**. Press **OFF** to return to normal. Using a trainer may put your game account at risk.
 
@@ -18,10 +19,18 @@ Use native Steam with Proton. Flatpak and Snap Steam are unsupported.
   ```
 - **Git clone.** Install GCC, Make, Python 3 and PyQt6. Run `make install` from the clone. Use a folder without spaces or colons.
 
-Paste the printed command into the game’s **Properties → General → Launch Options**. If you already use a wrapper, replace just `%command%` with the printed command. A portable install in `~/Applications/` looks like this:
+Paste the printed command into the game’s **Properties → General → Launch Options**. If you already use a wrapper, replace just `%command%` with the printed command.
+
+**Portable download**
 
 ```sh
 "$HOME/Applications/UmaSpeedTrainer-linux-x86_64" --steam-launch %command%
+```
+
+**Source install** (example clone in `~/Projects/UmaSpeedTrainer`)
+
+```sh
+"$HOME/Projects/UmaSpeedTrainer/launch.sh" %command%
 ```
 
 Launch the game through Steam, then open the downloaded trainer or **Uma Hook** from your app menu. Closing the trainer leaves the speed active. Relaunching the game resets it to 1×.
@@ -30,10 +39,18 @@ Launch the game through Steam, then open the downloaded trainer or **Uma Hook** 
 
 ### If Set has no effect
 
-Steam may need access to the trainer’s control folder. Add the folder setting at the start of your launch command, as in this portable example:
+Steam may need access to the trainer’s control folder. Add the folder setting at the start of your launch command.
+
+**Portable download**
 
 ```sh
 PRESSURE_VESSEL_FILESYSTEMS_RW="$XDG_RUNTIME_DIR/uma-hook" "$HOME/Applications/UmaSpeedTrainer-linux-x86_64" --steam-launch %command%
+```
+
+**Source install**
+
+```sh
+PRESSURE_VESSEL_FILESYSTEMS_RW="$XDG_RUNTIME_DIR/uma-hook" "$HOME/Projects/UmaSpeedTrainer/launch.sh" %command%
 ```
 
 If that option already exists, append the folder to its list with a colon. If `XDG_RUNTIME_DIR` is unset, use `/tmp/uma-hook-$(id -u)`. For custom `UMA_HOOK_CTRL` or `UMA_HOOK_LOG` paths, share their parent folders. Restart the game and press **Set** again.
