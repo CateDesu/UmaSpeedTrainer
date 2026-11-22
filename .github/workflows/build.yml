@@ -16,7 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Build hook and test runtime file security
-        run: make test
+        run: |
+          make test
+          python3 .github/test_prune_release_builds.py
       - name: Check Python and shell syntax
         run: |
           python3 -m py_compile runtime.py gui.py
@@ -84,6 +86,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
         with:
           pattern: UmaSpeedTrainer-*
@@ -105,3 +108,7 @@ jobs:
             Download `UmaSpeedTrainer-linux-x86_64` for Linux or `uma_speed_trainer.exe` for Windows. See the [README](https://github.com/${{ github.repository }}/blob/main/README.md) for setup instructions.
 
             > Built automatically. Untested by the author.
+      - name: Remove older release binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/prune_release_builds.py
